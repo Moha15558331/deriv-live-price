@@ -6,10 +6,12 @@ const statusElement = document.getElementById("status");
 const statusDot = document.getElementById("statusDot");
 const updatedElement = document.getElementById("updated");
 const socket = new WebSocket(
-  "wss://ws.derivws.com/websockets/v3?app_id=1089"
+  "wss://ws.derivws.com/websockets/v3?app_id=34GGk6VAHQWY2QDMsCKyZ"
 );
 let selectedSymbol = marketSelect.value;
-let subscriptionId = null;
+let subscriptions = new Map();
+let requestNumber = 0;
+let activeRequestId = null;
 function setStatus(message, state = "connecting") {
   statusElement.textContent = message;
   statusDot.className = "dot";
@@ -20,32 +22,32 @@ function setStatus(message, state = "connecting") {
   }
 }
 function subscribeToMarket(symbol) {
-  selectedSymbol = symbol;
-  if (subscriptionId !== null && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify({
-      forget: subscriptionId
-    }));
-    subscriptionId = null;
+  if (socket.readyState !== WebSocket.OPEN) {
+    setStatus("Waiting for connection...");
+    return;
   }
+  // Unsubscribe from the previous market.
+  for (const id of subscriptions.values()) {
+    socket.send(JSON.stringify({ forget: id }));
+  }
+  subscriptions.clear();
+  selectedSymbol = symbol;
+  activeRequestId = ++requestNumber;
   priceElement.textContent = "Loading...";
   updatedElement.textContent = "—";
   setStatus("Loading " + symbol + "...");
   socket.send(JSON.stringify({
     ticks: symbol,
-    subscribe: 1
+    subscribe: 1,
+    req_id: activeRequestId
   }));
 }
 function updateSelectedMarket() {
   const option = marketSelect.options[marketSelect.selectedIndex];
-  marketName.textContent = option.textContent;
-  symbolElement.textContent = marketSelect.value;
   selectedSymbol = marketSelect.value;
-  if (socket.readyState === WebSocket.OPEN) {
-    subscribeToMarket(selectedSymbol);
-  } else {
-    priceElement.textContent = "Loading...";
-    setStatus("Connecting to market...");
-  }
+  marketName.textContent = option.textContent;
+  symbolElement.textContent = selectedSymbol;
+  subscribeToMarket(selectedSymbol);
 }
 socket.addEventListener("open", () => {
   setStatus("Connected — loading price");
@@ -69,10 +71,11 @@ socket.addEventListener("message", (event) => {
       return;
     }
     if (data.subscription && data.subscription.id) {
-      subscriptionId = data.subscription.id;
+      subscriptions.set(selectedSymbol, data.subscription.id);
     }
+    const quote = Number(data.tick.quote);
     const decimals = Number(data.tick.pip_size ?? 2);
-    priceElement.textContent = Number(data.tick.quote).toFixed(decimals);
+    priceElement.textContent = quote.toFixed(decimals);
     updatedElement.textContent = new Date().toLocaleTimeString();
     setStatus("Live price connected", "connected");
   }
@@ -81,7 +84,7 @@ socket.addEventListener("error", () => {
   setStatus("Connection error — check API setup", "error");
 });
 socket.addEventListener("close", () => {
-  subscriptionId = null;
+  subscriptions.clear();
   setStatus("Disconnected — refresh to reconnect", "error");
 });
 marketSelect.addEventListener("change", updateSelectedMarket);
