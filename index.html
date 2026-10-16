@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Deriv Market Analyzer</title>
-  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -16,7 +15,7 @@
       padding: 20px 16px 40px;
     }
 
-    .container { max-width: 1100px; margin: 0 auto; }
+    .container { max-width: 900px; margin: 0 auto; }
 
     .brand {
       color: #36d6a5;
@@ -54,7 +53,7 @@
       letter-spacing: 0.5px;
     }
 
-    select, input[type="number"] {
+    select, input {
       width: 100%;
       padding: 11px 12px;
       border: 1px solid #34465f;
@@ -64,10 +63,6 @@
       color: white;
       font-size: 14px;
     }
-
-    input[type="number"]::-webkit-outer-spin-button,
-    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-    input[type="number"] { -moz-appearance: textfield; }
 
     .digit-inputs { display: flex; gap: 10px; }
     .digit-inputs > div { flex: 1; }
@@ -133,16 +128,6 @@
       line-height: 1;
     }
 
-    .chart-wrap {
-      margin-top: 16px;
-      height: 200px;
-      border-radius: 12px;
-      overflow: hidden;
-      border: 1px solid #2b3c52;
-      background: #0a1322;
-    }
-    #chart { width: 100%; height: 100%; }
-
     .analysis-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -197,7 +182,7 @@
     .bar-fill {
       height: 100%;
       border-radius: 5px;
-      transition: width 0.3s ease;
+      transition: width 0.25s ease;
     }
     .bar-fill.even  { background: linear-gradient(90deg, #36d6a5, #2bb88c); }
     .bar-fill.odd   { background: linear-gradient(90deg, #5b8def, #4a7ad9); }
@@ -207,7 +192,7 @@
     .bar-fill.fall  { background: linear-gradient(90deg, #ff6878, #e55566); }
 
     .bar-pct {
-      width: 46px;
+      width: 48px;
       text-align: right;
       font-size: 13px;
       font-weight: 600;
@@ -267,7 +252,7 @@
       max-width: 16px;
       background: linear-gradient(180deg, #36d6a5, #1a9e74);
       border-radius: 3px 3px 0 0;
-      transition: height 0.3s ease;
+      transition: height 0.25s ease;
       min-height: 2px;
     }
     .digit-cell.most .digit-bar { background: linear-gradient(180deg, #5b8def, #3a6bc7); }
@@ -336,7 +321,7 @@
 
       <div class="control-box">
         <label for="sampleSize">Ticks to analyze (1–1000)</label>
-        <input type="number" id="sampleSize" min="1" max="1000" value="100" />
+        <input type="text" id="sampleSize" value="100" inputmode="numeric" />
       </div>
     </div>
 
@@ -346,11 +331,11 @@
         <div class="digit-inputs">
           <div>
             <label for="overDigit" style="font-size:10px;margin-bottom:4px;">Over (digit &gt;)</label>
-            <input type="number" id="overDigit" min="0" max="9" value="5" />
+            <input type="text" id="overDigit" value="5" inputmode="numeric" maxlength="1" />
           </div>
           <div>
             <label for="underDigit" style="font-size:10px;margin-bottom:4px;">Under (digit &lt;)</label>
-            <input type="number" id="underDigit" min="0" max="9" value="5" />
+            <input type="text" id="underDigit" value="5" inputmode="numeric" maxlength="1" />
           </div>
         </div>
       </div>
@@ -369,7 +354,7 @@
       </div>
     </div>
 
-    <!-- Price + Mini Chart -->
+    <!-- Price -->
     <section class="market-card">
       <div class="market-name" id="marketName">Volatility 25 (1s) Index</div>
       <div class="symbol">Symbol: <span id="symbol">1HZ25V</span></div>
@@ -384,11 +369,7 @@
 
       <div class="updated">
         Last update: <span id="updated">—</span>
-        &nbsp;•&nbsp; Samples: <span id="sampleCount">0</span>
-      </div>
-
-      <div class="chart-wrap">
-        <div id="chart"></div>
+        &nbsp;•&nbsp; Analyzing last: <span id="sampleCount">0</span> ticks
       </div>
     </section>
 
@@ -480,7 +461,7 @@
     </div>
 
     <p class="note">
-      Read-only market data. Analysis uses the last N ticks you select (max 1000). This tool does not place trades.
+      Read-only market data. Always shows statistics of the last N ticks you selected. Keeps updating live as new ticks arrive.
     </p>
   </div>
 
@@ -498,63 +479,16 @@
     const sampleSizeInput = document.getElementById("sampleSize");
     const overDigitInput  = document.getElementById("overDigit");
     const underDigitInput = document.getElementById("underDigit");
-    const chartContainer  = document.getElementById("chart");
 
     // ========== State ==========
     let socket = null;
     let selectedSymbol = marketSelect.value;
     let subscriptionId = null;
     let reconnectAttempts = 0;
-    const MAX_RECONNECT_ATTEMPTS = 15;
+    const MAX_RECONNECT_ATTEMPTS = 12;
     let pingInterval = null;
-    let ticks = [];
+    let ticks = [];                 // stores last digits + quotes
     const MAX_TICKS = 1000;
-
-    // Try new endpoint first, then fall back to the old reliable one
-    const ENDPOINTS = [
-      "wss://ws.derivws.com/websockets/v3?app_id=1089",          // Old reliable
-      "wss://api.derivws.com/trading/v1/options/ws/public"       // New public
-    ];
-    let currentEndpointIndex = 0;
-
-    // ========== Chart ==========
-    let chart, lineSeries;
-    try {
-      chart = LightweightCharts.createChart(chartContainer, {
-        layout: {
-          background: { type: 'solid', color: '#0a1322' },
-          textColor: '#8499b4',
-        },
-        grid: {
-          vertLines: { color: '#1a2738' },
-          horzLines: { color: '#1a2738' },
-        },
-        width: chartContainer.clientWidth,
-        height: 200,
-        rightPriceScale: { borderColor: '#2b3c52' },
-        timeScale: {
-          borderColor: '#2b3c52',
-          timeVisible: true,
-          secondsVisible: true,
-        },
-        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-      });
-
-      lineSeries = chart.addSeries(LightweightCharts.LineSeries, {
-        color: '#36d6a5',
-        lineWidth: 2,
-        crosshairMarkerVisible: true,
-        crosshairMarkerRadius: 4,
-        lastValueVisible: true,
-        priceLineVisible: true,
-      });
-
-      window.addEventListener('resize', () => {
-        if (chart) chart.applyOptions({ width: chartContainer.clientWidth });
-      });
-    } catch (e) {
-      console.error("Chart init failed:", e);
-    }
 
     // ========== Helpers ==========
     function setStatus(message, state = "connecting") {
@@ -573,21 +507,37 @@
       let n = parseInt(sampleSizeInput.value, 10);
       if (isNaN(n) || n < 1) n = 1;
       if (n > 1000) n = 1000;
-      sampleSizeInput.value = n;
       return n;
     }
 
-    // ========== Analysis ==========
+    function getOverDigit() {
+      let d = parseInt(overDigitInput.value, 10);
+      if (isNaN(d)) d = 5;
+      return Math.min(9, Math.max(0, d));
+    }
+
+    function getUnderDigit() {
+      let d = parseInt(underDigitInput.value, 10);
+      if (isNaN(d)) d = 5;
+      return Math.min(9, Math.max(0, d));
+    }
+
+    // ========== Analysis (always uses last N ticks) ==========
     function analyze() {
       const n = getSampleSize();
+      // Always take the last N ticks (or all we have if fewer than N)
       const sample = ticks.slice(-n);
       const count = sample.length;
+
       sampleCountEl.textContent = count;
       if (count === 0) return;
 
-      // Even / Odd
+      // ----- Even / Odd -----
       let even = 0, odd = 0;
-      sample.forEach(t => { (t.digit % 2 === 0) ? even++ : odd++; });
+      sample.forEach(t => {
+        if (t.digit % 2 === 0) even++;
+        else odd++;
+      });
       const evenPct = ((even / count) * 100).toFixed(1);
       const oddPct  = ((odd  / count) * 100).toFixed(1);
       document.getElementById('evenBar').style.width = evenPct + '%';
@@ -596,11 +546,9 @@
       document.getElementById('oddPct').textContent  = oddPct  + '%';
       document.getElementById('eoBadge').textContent = count + ' ticks';
 
-      // Over / Under
-      const overD  = Math.min(9, Math.max(0, parseInt(overDigitInput.value, 10)  || 5));
-      const underD = Math.min(9, Math.max(0, parseInt(underDigitInput.value, 10) || 5));
-      overDigitInput.value  = overD;
-      underDigitInput.value = underD;
+      // ----- Over / Under -----
+      const overD  = getOverDigit();
+      const underD = getUnderDigit();
 
       let over = 0, under = 0;
       sample.forEach(t => {
@@ -615,11 +563,11 @@
       document.getElementById('underPct').textContent = underPct + '%';
       document.getElementById('ouBadge').textContent  = count + ' ticks';
 
-      // Rise / Fall
+      // ----- Rise / Fall -----
       let rise = 0, fall = 0;
       for (let i = 1; i < sample.length; i++) {
-        if (sample[i].quote > sample[i-1].quote) rise++;
-        else if (sample[i].quote < sample[i-1].quote) fall++;
+        if (sample[i].quote > sample[i - 1].quote) rise++;
+        else if (sample[i].quote < sample[i - 1].quote) fall++;
       }
       const rfTotal = rise + fall;
       const risePct = rfTotal ? ((rise / rfTotal) * 100).toFixed(1) : '0.0';
@@ -630,7 +578,7 @@
       document.getElementById('fallPct').textContent = fallPct + '%';
       document.getElementById('rfBadge').textContent  = rfTotal + ' moves';
 
-      // Digit frequency
+      // ----- Digit Frequency -----
       const freq = Array(10).fill(0);
       sample.forEach(t => freq[t.digit]++);
 
@@ -646,7 +594,7 @@
       const lastDigit = sample[sample.length - 1].digit;
       lastDigitEl.textContent = lastDigit;
 
-      // Digit table
+      // Build digit table
       const table = document.getElementById('digitTable');
       table.innerHTML = '';
       const maxBar = Math.max(...freq, 1);
@@ -684,41 +632,33 @@
         socket.onopen = socket.onmessage = socket.onerror = socket.onclose = null;
         try { socket.close(); } catch(e) {}
       }
-      if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
-
-      const url = ENDPOINTS[currentEndpointIndex];
-      console.log("Connecting to:", url);
-      setStatus("Connecting... (" + (currentEndpointIndex === 0 ? "legacy" : "new") + ")", "connecting");
-
-      try {
-        socket = new WebSocket(url);
-      } catch (e) {
-        console.error("WebSocket constructor failed:", e);
-        setStatus("WebSocket not supported", "error");
-        return;
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
       }
 
+      // Reliable endpoint
+      socket = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089");
+
+      setStatus("Connecting...", "connecting");
+      priceElement.textContent = "Waiting...";
+
       socket.addEventListener("open", () => {
-        console.log("✅ WebSocket connected to", url);
+        console.log("✅ WebSocket connected");
         reconnectAttempts = 0;
-        setStatus("Connected — loading price", "connecting");
+        setStatus("Connected — loading price");
         subscribeToMarket(selectedSymbol);
 
         pingInterval = setInterval(() => {
-          if (socket?.readyState === WebSocket.OPEN) {
+          if (socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ ping: 1 }));
           }
-        }, 25000);
+        }, 30000);
       });
 
       socket.addEventListener("message", (event) => {
         let data;
         try { data = JSON.parse(event.data); } catch { return; }
-
-        // Log first few messages for debugging
-        if (ticks.length < 3) {
-          console.log("Received:", data);
-        }
 
         if (data.error) {
           console.error("Deriv API error:", data.error);
@@ -729,64 +669,48 @@
 
         if (data.msg_type === "tick" && data.tick) {
           if (data.tick.symbol !== selectedSymbol) return;
-          if (data.subscription?.id) subscriptionId = data.subscription.id;
+
+          if (data.subscription && data.subscription.id) {
+            subscriptionId = data.subscription.id;
+          }
 
           const quote    = Number(data.tick.quote);
-          const epoch    = data.tick.epoch;
           const digit    = getLastDigit(quote);
           const decimals = Number(data.tick.pip_size ?? 2);
 
-          priceElement.textContent    = quote.toFixed(decimals);
-          updatedElement.textContent  = new Date().toLocaleTimeString();
+          // Update price
+          priceElement.textContent   = quote.toFixed(decimals);
+          updatedElement.textContent = new Date().toLocaleTimeString();
           setStatus("Live price connected", "connected");
-          lastDigitEl.textContent     = digit;
+          lastDigitEl.textContent    = digit;
 
-          ticks.push({ epoch, quote, digit });
+          // Store tick (rolling window)
+          ticks.push({ quote, digit });
           if (ticks.length > MAX_TICKS) ticks.shift();
 
-          // Update chart
-          try {
-            if (lineSeries) {
-              lineSeries.update({ time: epoch, value: quote });
-              chart.timeScale().scrollToRealTime();
-            }
-          } catch (e) {
-            // Ignore chart errors so analysis still works
-          }
-
+          // Always re-analyze last N ticks
           analyze();
         }
       });
 
-      socket.addEventListener("error", (err) => {
-        console.error("WebSocket error:", err);
+      socket.addEventListener("error", () => {
         setStatus("Connection error", "error");
       });
 
-      socket.addEventListener("close", (event) => {
-        console.log("WebSocket closed:", event.code, event.reason);
+      socket.addEventListener("close", () => {
         subscriptionId = null;
         setStatus("Disconnected — reconnecting...", "error");
-
         if (pingInterval) {
           clearInterval(pingInterval);
           pingInterval = null;
         }
 
-        // Switch endpoint after a few failures
-        if (reconnectAttempts >= 3) {
-          currentEndpointIndex = (currentEndpointIndex + 1) % ENDPOINTS.length;
-          console.log("Switching to endpoint index:", currentEndpointIndex);
-          reconnectAttempts = 0;
-        }
-
         if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          const delay = Math.min(1000 * Math.pow(1.6, reconnectAttempts), 12000);
+          const delay = Math.min(1000 * Math.pow(1.8, reconnectAttempts), 15000);
           reconnectAttempts++;
-          console.log(`Reconnecting in ${Math.round(delay)}ms (attempt ${reconnectAttempts})`);
           setTimeout(connect, delay);
         } else {
-          setStatus("Failed to reconnect. Please refresh the page.", "error");
+          setStatus("Failed to reconnect. Please refresh.", "error");
         }
       });
     }
@@ -794,9 +718,8 @@
     function subscribeToMarket(symbol) {
       selectedSymbol = symbol;
 
-      // Reset on market switch
+      // Reset when switching market
       ticks = [];
-      try { if (lineSeries) lineSeries.setData([]); } catch(e) {}
       sampleCountEl.textContent = '0';
       lastDigitEl.textContent = '—';
       ['even','odd','over','under','rise','fall'].forEach(id => {
@@ -822,7 +745,6 @@
       updatedElement.textContent = "—";
       setStatus("Loading " + symbol + "...");
 
-      // Send subscription
       socket.send(JSON.stringify({
         ticks: symbol,
         subscribe: 1
@@ -837,12 +759,14 @@
       subscribeToMarket(selectedSymbol);
     }
 
+    // Re-run analysis when user changes settings
+    sampleSizeInput.addEventListener('input', analyze);
     sampleSizeInput.addEventListener('change', analyze);
-    sampleSizeInput.addEventListener('input',  analyze);
-    overDigitInput.addEventListener('change',  analyze);
-    overDigitInput.addEventListener('input',   analyze);
+    overDigitInput.addEventListener('input', analyze);
+    overDigitInput.addEventListener('change', analyze);
+    underDigitInput.addEventListener('input', analyze);
     underDigitInput.addEventListener('change', analyze);
-    underDigitInput.addEventListener('input',  analyze);
+
     marketSelect.addEventListener('change', updateSelectedMarket);
 
     // Start
