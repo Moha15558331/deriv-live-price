@@ -3,181 +3,265 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Deriv Live Price</title>
+  <title>Deriv Live Market Dashboard</title>
   <style>
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
     body {
       margin: 0;
+      padding: 22px 15px;
       min-height: 100vh;
-      padding: 24px 16px;
       background: #080d19;
       color: #f1f5f9;
-      font-family: -apple-system, BlinkMacSystemFont,
-        "Segoe UI", sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
     .container {
-      width: 100%;
-      max-width: 600px;
-      margin: 0 auto;
+      max-width: 650px;
+      margin: auto;
     }
-    header {
-      padding: 18px 4px 28px;
-    }
+    header { padding: 12px 3px 25px; }
     .brand {
       color: #60a5fa;
-      font-size: 12px;
-      font-weight: 700;
+      font-size: 11px;
+      font-weight: 800;
       letter-spacing: 2px;
     }
     h1 {
-      margin: 12px 0 8px;
+      margin: 12px 0 6px;
       font-size: 28px;
     }
-    .subtitle {
-      color: #94a3b8;
-      font-size: 14px;
-    }
+    .muted { color: #94a3b8; font-size: 13px; }
     .card {
+      padding: 22px;
       margin-bottom: 16px;
-      padding: 24px;
-      border: 1px solid #253047;
-      border-radius: 20px;
       background: #111a2b;
+      border: 1px solid #26334b;
+      border-radius: 20px;
     }
-    .section-label {
+    .label {
       color: #94a3b8;
-      font-size: 12px;
-      font-weight: 600;
+      font-size: 11px;
+      font-weight: 700;
       letter-spacing: 1px;
     }
-    .market-name {
-      margin-top: 8px;
-      font-size: 20px;
-      font-weight: 700;
+    input, select {
+      width: 100%;
+      margin-top: 10px;
+      padding: 14px;
+      background: #0b1323;
+      border: 1px solid #34435e;
+      border-radius: 11px;
+      color: #f8fafc;
+      font-size: 15px;
+      outline: none;
     }
-    .market-symbol {
+    input:focus, select:focus {
+      border-color: #60a5fa;
+    }
+    .market-name {
+      margin-top: 20px;
+      font-size: 22px;
+      font-weight: 750;
+    }
+    .symbol {
       display: inline-block;
       margin-top: 10px;
-      padding: 6px 10px;
+      padding: 7px 10px;
       border-radius: 8px;
-      background: #1e293b;
+      background: #202c42;
       color: #cbd5e1;
       font-size: 12px;
-    }
-    .price-label {
-      margin-top: 28px;
-      color: #94a3b8;
-      font-size: 13px;
     }
     .price {
       margin: 12px 0 20px;
       font-size: clamp(32px, 9vw, 46px);
       font-weight: 750;
-      letter-spacing: -1px;
       overflow-wrap: anywhere;
     }
     .status {
       display: inline-flex;
       align-items: center;
-      gap: 9px;
+      gap: 8px;
       padding: 9px 12px;
-      border: 1px solid #334155;
-      border-radius: 30px;
-      background: #172235;
-      color: #e2e8f0;
+      background: #202c42;
+      border-radius: 25px;
       font-size: 12px;
     }
     .dot {
-      width: 9px;
-      height: 9px;
-      flex-shrink: 0;
+      width: 8px;
+      height: 8px;
       border-radius: 50%;
       background: #fbbf24;
     }
     .info {
       display: flex;
       justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
-      padding: 16px 0;
-      border-bottom: 1px solid #253047;
+      gap: 15px;
+      padding: 15px 0;
+      border-bottom: 1px solid #26334b;
       font-size: 13px;
     }
-    .info:first-child {
-      padding-top: 0;
-    }
+    .info:first-child { padding-top: 0; }
     .info:last-child {
       padding-bottom: 0;
-      border-bottom: none;
+      border: 0;
     }
-    .info-label {
-      color: #94a3b8;
-    }
-    .info-value {
-      max-width: 65%;
+    .info span:first-child { color: #94a3b8; }
+    .info span:last-child {
       text-align: right;
       overflow-wrap: anywhere;
     }
-    .footer {
-      padding: 20px 4px;
+    .note {
+      margin-top: 14px;
+      color: #94a3b8;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+    footer {
+      padding: 18px 5px;
       color: #64748b;
       font-size: 12px;
-      line-height: 1.7;
       text-align: center;
     }
   </style>
 </head>
 <body>
-  <main class="container">
-    <header>
-      <div class="brand">LIVE MARKET DASHBOARD</div>
-      <h1>Deriv Live Price</h1>
-      <div class="subtitle">
-        Real-time connection monitor
-      </div>
-    </header>
-    <section class="card">
-      <div class="section-label">SELECTED MARKET</div>
-      <div class="market-name" id="marketName">
-        R_100
-      </div>
-      <div class="market-symbol" id="marketSymbol">
-        Symbol: R_100
-      </div>
-      <div class="price-label">LATEST RECEIVED PRICE</div>
-      <div class="price" id="price">
-        Waiting for data...
-      </div>
-      <div class="status">
-        <span class="dot" id="statusDot"></span>
-        <span id="connectionStatus">Connecting...</span>
-      </div>
-    </section>
-    <section class="card">
-      <div class="info">
-        <span class="info-label">Data source</span>
-        <span class="info-value">Deriv WebSocket</span>
-      </div>
-      <div class="info">
-        <span class="info-label">Connection</span>
-        <span class="info-value" id="connectionDetail">
-          Initializing
-        </span>
-      </div>
-      <div class="info">
-        <span class="info-label">Last update</span>
-        <span class="info-value" id="lastUpdate">
-          Not received yet
-        </span>
-      </div>
-    </section>
-    <footer class="footer">
-      Live data dashboard<br>
-      The displayed market name must match the actual data subscription.
-    </footer>
-  </main>
-  <script src="script.js"></script>
+<main class="container">
+  <header>
+    <div class="brand">MARKET MONITOR</div>
+    <h1>Deriv Live Price</h1>
+    <div class="muted">Market information dashboard</div>
+  </header>
+  <section class="card">
+    <div class="label">SEARCH MARKETS</div>
+    <input
+      id="search"
+      type="search"
+      placeholder="Search by market name or symbol..."
+      autocomplete="off"
+    >
+    <label class="label" for="marketSelect">SELECT MARKET</label>
+    <select id="marketSelect">
+      <option value="R_100">Volatility 100 Index — R_100</option>
+      <option value="1HZ100V">Volatility 100 (1s) Index — 1HZ100V</option>
+      <option value="R_75">Volatility 75 Index — R_75</option>
+      <option value="1HZ75V">Volatility 75 (1s) Index — 1HZ75V</option>
+      <option value="R_50">Volatility 50 Index — R_50</option>
+      <option value="1HZ50V">Volatility 50 (1s) Index — 1HZ50V</option>
+      <option value="R_25">Volatility 25 Index — R_25</option>
+      <option value="1HZ25V">Volatility 25 (1s) Index — 1HZ25V</option>
+      <option value="R_10">Volatility 10 Index — R_10</option>
+      <option value="1HZ10V">Volatility 10 (1s) Index — 1HZ10V</option>
+      <option value="JD10">Jump 10 Index — JD10</option>
+      <option value="JD25">Jump 25 Index — JD25</option>
+      <option value="JD50">Jump 50 Index — JD50</option>
+      <option value="JD75">Jump 75 Index — JD75</option>
+      <option value="JD100">Jump 100 Index — JD100</option>
+    </select>
+  </section>
+  <section class="card">
+    <div class="label">SELECTED MARKET</div>
+    <div class="market-name" id="marketName">Volatility 100 Index</div>
+    <div class="symbol" id="marketSymbol">Symbol: R_100</div>
+    <div class="label" style="margin-top:28px">LATEST PRICE</div>
+    <div class="price" id="price">Awaiting live data</div>
+    <div class="status">
+      <span class="dot" id="statusDot"></span>
+      <span id="connectionStatus">Not connected</span>
+    </div>
+  </section>
+  <section class="card">
+    <div class="info">
+      <span>Selected symbol</span>
+      <span id="detailSymbol">R_100</span>
+    </div>
+    <div class="info">
+      <span>Connection</span>
+      <span id="connectionDetail">Not connected</span>
+    </div>
+    <div class="info">
+      <span>Last update</span>
+      <span id="lastUpdate">No data received</span>
+    </div>
+    <p class="note">
+      Market names and symbols above are a sample list, not a complete
+      catalogue. A selected market is not live until its data feed
+      has been connected and verified.
+    </p>
+  </section>
+  <footer>Deriv Market Monitor · Informational display</footer>
+</main>
+<script>
+  const markets = [
+    ["R_100", "Volatility 100 Index"],
+    ["1HZ100V", "Volatility 100 (1s) Index"],
+    ["R_75", "Volatility 75 Index"],
+    ["1HZ75V", "Volatility 75 (1s) Index"],
+    ["R_50", "Volatility 50 Index"],
+    ["1HZ50V", "Volatility 50 (1s) Index"],
+    ["R_25", "Volatility 25 Index"],
+    ["1HZ25V", "Volatility 25 (1s) Index"],
+    ["R_10", "Volatility 10 Index"],
+    ["1HZ10V", "Volatility 10 (1s) Index"],
+    ["JD10", "Jump 10 Index"],
+    ["JD25", "Jump 25 Index"],
+    ["JD50", "Jump 50 Index"],
+    ["JD75", "Jump 75 Index"],
+    ["JD100", "Jump 100 Index"]
+  ];
+  const search = document.getElementById("search");
+  const select = document.getElementById("marketSelect");
+  function updateMarketDetails() {
+    const symbol = select.value;
+    const market = markets.find(item => item[0] === symbol);
+    if (!market) return;
+    document.getElementById("marketName").textContent = market[1];
+    document.getElementById("marketSymbol").textContent =
+      "Symbol: " + market[0];
+    document.getElementById("detailSymbol").textContent = market[0];
+    document.getElementById("price").textContent =
+      "Awaiting live data";
+    document.getElementById("connectionStatus").textContent =
+      "Not connected";
+    document.getElementById("connectionDetail").textContent =
+      "Feed not verified";
+    document.getElementById("lastUpdate").textContent =
+      "No data received";
+    document.getElementById("statusDot").style.background = "#fbbf24";
+  }
+  function filterMarkets() {
+    const query = search.value.trim().toLowerCase();
+    const previous = select.value;
+    const filtered = markets.filter(([symbol, name]) =>
+      name.toLowerCase().includes(query) ||
+      symbol.toLowerCase().includes(query)
+    );
+    select.replaceChildren();
+    filtered.forEach(([symbol, name]) => {
+      const option = document.createElement("option");
+      option.value = symbol;
+      option.textContent = `${name} — ${symbol}`;
+      select.appendChild(option);
+    });
+    if (filtered.some(item => item[0] === previous)) {
+      select.value = previous;
+    }
+    if (filtered.length) {
+      updateMarketDetails();
+    } else {
+      document.getElementById("marketName").textContent =
+        "No matching market";
+      document.getElementById("marketSymbol").textContent = "—";
+      document.getElementById("detailSymbol").textContent = "—";
+      document.getElementById("price").textContent = "—";
+      document.getElementById("connectionStatus").textContent =
+        "No market selected";
+      document.getElementById("connectionDetail").textContent = "Idle";
+      document.getElementById("lastUpdate").textContent = "—";
+    }
+  }
+  select.addEventListener("change", updateMarketDetails);
+  search.addEventListener("input", filterMarkets);
+  updateMarketDetails();
+</script>
 </body>
 </html>
