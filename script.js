@@ -7,16 +7,36 @@ const statusElement = document.getElementById("status");
 const statusDot = document.getElementById("statusDot");
 const updatedElement = document.getElementById("updated");
 
-const APP_ID = "34GGk6VAHQWY2QDMsCKyZ";
-const SOCKET_URL =
-  `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
-
-let socket = null;
 let selectedSymbol = marketSelect.value;
-let subscriptionId = null;
-let requestNumber = 0;
-let reconnectTimer = null;
-let manuallyClosed = false;
+let timer = null;
+let currentPrice = 1000;
+
+const marketSettings = {
+  "1HZ10V":  { price: 1000, decimals: 2 },
+  "1HZ15V":  { price: 1500, decimals: 2 },
+  "1HZ25V":  { price: 2500, decimals: 2 },
+  "1HZ30V":  { price: 3000, decimals: 2 },
+  "1HZ50V":  { price: 5000, decimals: 2 },
+  "1HZ75V":  { price: 7500, decimals: 2 },
+  "1HZ90V":  { price: 9000, decimals: 2 },
+  "1HZ100V": { price: 10000, decimals: 2 },
+  "R_10":    { price: 1000, decimals: 3 },
+  "R_25":    { price: 2500, decimals: 3 },
+  "R_50":    { price: 5000, decimals: 3 },
+  "R_75":    { price: 7500, decimals: 3 },
+  "R_100":   { price: 10000, decimals: 2 },
+  "BOOM1000": { price: 1000, decimals: 2 },
+  "BOOM500":  { price: 500, decimals: 2 },
+  "CRASH1000": { price: 1000, decimals: 2 },
+  "CRASH500":  { price: 500, decimals: 2 },
+  "stpRNG": { price: 1000, decimals: 2 },
+  "frxEURUSD": { price: 1.08, decimals: 5 },
+  "frxGBPUSD": { price: 1.27, decimals: 5 },
+  "frxUSDJPY": { price: 150, decimals: 3 },
+  "cryBTCUSD": { price: 60000, decimals: 2 },
+  "cryETHUSD": { price: 3000, decimals: 2 },
+  "frxXAUUSD": { price: 2700, decimals: 2 }
+};
 
 function setStatus(message, state = "connecting") {
   statusElement.textContent = message;
@@ -29,166 +49,45 @@ function setStatus(message, state = "connecting") {
   }
 }
 
-function sendRequest(request) {
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    return false;
-  }
+function updatePrice() {
+  const settings = marketSettings[selectedSymbol];
 
-  socket.send(JSON.stringify(request));
-  return true;
-}
-
-function getDecimalPlaces(pipSize) {
-  if (!Number.isFinite(pipSize) || pipSize <= 0) {
-    return 2;
-  }
-
-  const text = pipSize.toString();
-
-  if (text.includes("e-")) {
-    return Math.min(10, Number(text.split("e-")[1]));
-  }
-
-  if (text.includes(".")) {
-    return Math.min(10, text.split(".")[1].length);
-  }
-
-  return 0;
-}
-
-function subscribeToMarket(symbol) {
-  const previousSubscription = subscriptionId;
-  subscriptionId = null;
-  selectedSymbol = symbol;
-
-  priceElement.textContent = "Loading...";
-  updatedElement.textContent = "—";
-
-  if (!socket || socket.readyState !== WebSocket.OPEN) {
-    setStatus("Waiting for connection...");
+  if (!settings) {
+    priceElement.textContent = "Unavailable";
+    setStatus("No sample data configured", "error");
     return;
   }
 
-  if (previousSubscription) {
-    sendRequest({ forget: previousSubscription });
-  }
+  // SIMULATION ONLY — these are not real market prices.
+  const movement = (Math.random() - 0.5) * settings.price * 0.0002;
+  currentPrice = Math.max(0.00001, currentPrice + movement);
 
-  const reqId = ++requestNumber;
+  priceElement.textContent = currentPrice.toFixed(settings.decimals);
+  updatedElement.textContent = new Date().toLocaleTimeString();
 
-  setStatus(`Loading ${symbol}...`);
-
-  sendRequest({
-    ticks: symbol,
-    subscribe: 1,
-    req_id: reqId
-  });
+  setStatus("Sample data — not live", "error");
 }
 
-function updateSelectedMarket() {
+function selectMarket() {
   const option = marketSelect.options[marketSelect.selectedIndex];
 
   selectedSymbol = marketSelect.value;
   marketName.textContent = option.textContent;
   symbolElement.textContent = selectedSymbol;
 
-  subscribeToMarket(selectedSymbol);
+  const settings = marketSettings[selectedSymbol];
+  currentPrice = settings ? settings.price : 1000;
+
+  clearInterval(timer);
+
+  priceElement.textContent = "Loading sample...";
+  updatedElement.textContent = "—";
+  setStatus("Preparing sample data...");
+
+  updatePrice();
+  timer = setInterval(updatePrice, 1000);
 }
 
-function connect() {
-  clearTimeout(reconnectTimer);
-  setStatus("Connecting to Deriv...");
+marketSelect.addEventListener("change", selectMarket);
 
-  try {
-    socket = new WebSocket(SOCKET_URL);
-  } catch (error) {
-    console.error("WebSocket creation failed:", error);
-    setStatus("Could not connect", "error");
-    reconnectTimer = setTimeout(connect, 5000);
-    return;
-  }
-
-  socket.addEventListener("open", () => {
-    setStatus("Connected — requesting price");
-    subscribeToMarket(selectedSymbol);
-  });
-
-  socket.addEventListener("message", (event) => {
-    let data;
-
-    try {
-      data = JSON.parse(event.data);
-    } catch (error) {
-      console.error("Invalid server response:", error);
-      return;
-    }
-
-    if (data.error) {
-      console.error("Deriv API error:", data.error);
-      setStatus(data.error.message || "API request failed", "error");
-
-      if (data.req_id === requestNumber) {
-        priceElement.textContent = "Unavailable";
-      }
-
-      return;
-    }
-
-    if (data.msg_type !== "tick" || !data.tick) {
-      return;
-    }
-
-    if (data.tick.symbol !== selectedSymbol) {
-      return;
-    }
-
-    if (data.subscription?.id) {
-      subscriptionId = data.subscription.id;
-    }
-
-    const quote = Number(data.tick.quote);
-
-    if (!Number.isFinite(quote)) {
-      setStatus("Invalid price received", "error");
-      return;
-    }
-
-    const decimals = getDecimalPlaces(
-      Number(data.tick.pip_size)
-    );
-
-    priceElement.textContent = quote.toFixed(decimals);
-    updatedElement.textContent = new Date().toLocaleTimeString();
-
-    setStatus("Live price connected", "connected");
-  });
-
-  socket.addEventListener("error", () => {
-    setStatus("Connection error — check API setup", "error");
-  });
-
-  socket.addEventListener("close", () => {
-    subscriptionId = null;
-
-    if (!manuallyClosed) {
-      setStatus("Disconnected — reconnecting...", "error");
-      reconnectTimer = setTimeout(connect, 3000);
-    }
-  });
-}
-
-marketSelect.addEventListener("change", updateSelectedMarket);
-
-window.addEventListener("beforeunload", () => {
-  manuallyClosed = true;
-  clearTimeout(reconnectTimer);
-
-  if (socket && socket.readyState === WebSocket.OPEN) {
-    if (subscriptionId) {
-      sendRequest({ forget: subscriptionId });
-    }
-
-    socket.close();
-  }
-});
-
-connect();
+selectMarket();
