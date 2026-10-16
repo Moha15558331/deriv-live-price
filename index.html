@@ -3,87 +3,205 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Live Price Dashboard</title>
+  <title>Deriv Live Market</title>
+
   <style>
-    * { box-sizing: border-box; }
+    * {
+      box-sizing: border-box;
+    }
 
     body {
       margin: 0;
-      padding: 24px;
-      background: #0b1120;
-      color: #e5e7eb;
+      min-height: 100vh;
+      padding: 24px 16px;
+      background: #0b1220;
+      color: #f4f7fb;
       font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
     }
 
     .dashboard {
-      max-width: 600px;
-      margin: 40px auto;
-      padding: 24px;
-      background: #151e30;
-      border: 1px solid #293449;
-      border-radius: 16px;
+      width: 100%;
+      max-width: 520px;
+      padding: 28px;
+      border: 1px solid #263449;
+      border-radius: 22px;
+      background: #111c2e;
+      box-shadow: 0 18px 55px #0005;
     }
 
-    h1 { font-size: 23px; }
+    .brand {
+      color: #36d6a5;
+      font-size: 13px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
 
-    select, button {
+    h1 {
+      margin: 10px 0 6px;
+      font-size: 27px;
+    }
+
+    .subtitle {
+      margin: 0 0 26px;
+      color: #96a8c0;
+      font-size: 14px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 9px;
+      color: #b8c6d9;
+      font-size: 13px;
+    }
+
+    select {
       width: 100%;
-      padding: 12px;
-      margin: 10px 0;
-      border: 1px solid #374151;
-      border-radius: 8px;
-      background: #0b1120;
+      padding: 15px;
+      border: 1px solid #34465f;
+      border-radius: 12px;
+      outline: none;
+      background: #0b1424;
       color: white;
       font-size: 15px;
     }
 
-    .status { color: #fbbf24; font-size: 14px; }
-
-    .dot {
-      display: inline-block;
-      width: 9px;
-      height: 9px;
-      margin-right: 8px;
-      border-radius: 50%;
-      background: #fbbf24;
+    .market-card {
+      margin-top: 22px;
+      padding: 22px;
+      border: 1px solid #2b3c52;
+      border-radius: 16px;
+      background: #0b1424;
     }
 
-    .dot.connected { background: #22c55e; }
-    .dot.disconnected { background: #ef4444; }
+    .market-name {
+      color: #c3d0e0;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    .symbol {
+      margin-top: 7px;
+      color: #8499b4;
+      font-size: 13px;
+    }
+
+    .price-label {
+      margin-top: 30px;
+      color: #91a4bc;
+      font-size: 13px;
+    }
 
     .price {
-      margin: 28px 0 12px;
-      font-size: 38px;
+      margin-top: 8px;
+      font-size: clamp(34px, 9vw, 48px);
       font-weight: bold;
       overflow-wrap: anywhere;
+      font-variant-numeric: tabular-nums;
     }
 
-    .muted { color: #9ca3af; font-size: 13px; }
-    button { cursor: pointer; background: #24334c; }
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-top: 22px;
+      color: #c1cddd;
+      font-size: 13px;
+    }
+
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: #f5b942;
+      flex-shrink: 0;
+    }
+
+    .dot.connected {
+      background: #36d6a5;
+    }
+
+    .dot.error {
+      background: #ff6878;
+    }
+
+    .updated {
+      margin-top: 12px;
+      color: #8193ab;
+      font-size: 12px;
+    }
+
+    .note {
+      margin-top: 22px;
+      color: #8193ab;
+      font-size: 12px;
+      line-height: 1.6;
+    }
   </style>
 </head>
+
 <body>
   <main class="dashboard">
-    <h1>Live Price Dashboard</h1>
+    <div class="brand">Deriv Market Data</div>
+    <h1>Live Price</h1>
+    <p class="subtitle">Real-time market prices</p>
 
-    <label for="market">Select market</label>
-    <select id="market">
-      <option value="Market A">Market A</option>
-      <option value="Market B">Market B</option>
-      <option value="Market C">Market C</option>
+    <label for="marketSelect">Select market</label>
+
+    <select id="marketSelect">
+      <option value="1HZ25V">Volatility 25 (1s) Index</option>
+      <option value="1HZ10V">Volatility 10 (1s) Index</option>
+      <option value="1HZ15V">Volatility 15 (1s) Index</option>
+      <option value="1HZ30V">Volatility 30 (1s) Index</option>
+      <option value="1HZ50V">Volatility 50 (1s) Index</option>
+      <option value="1HZ75V">Volatility 75 (1s) Index</option>
+      <option value="1HZ90V">Volatility 90 (1s) Index</option>
+      <option value="R_10">Volatility 10 Index</option>
+      <option value="R_25">Volatility 25 Index</option>
+      <option value="R_50">Volatility 50 Index</option>
+      <option value="R_75">Volatility 75 Index</option>
+      <option value="R_100">Volatility 100 Index</option>
+      <option value="BOOM1000">Boom 1000 Index</option>
+      <option value="BOOM500">Boom 500 Index</option>
+      <option value="CRASH1000">Crash 1000 Index</option>
+      <option value="CRASH500">Crash 500 Index</option>
+      <option value="stpRNG">Step Index</option>
+      <option value="frxEURUSD">EUR/USD</option>
+      <option value="frxGBPUSD">GBP/USD</option>
+      <option value="frxUSDJPY">USD/JPY</option>
+      <option value="cryBTCUSD">BTC/USD</option>
+      <option value="cryETHUSD">ETH/USD</option>
+      <option value="frxXAUUSD">Gold/USD</option>
     </select>
 
-    <p class="status">
-      <span id="dot" class="dot"></span>
-      <span id="status">Starting...</span>
+    <section class="market-card">
+      <div class="market-name" id="marketName">
+        Volatility 25 (1s) Index
+      </div>
+
+      <div class="symbol">
+        Symbol: <span id="symbol">1HZ25V</span>
+      </div>
+
+      <div class="price-label">Current price</div>
+      <div class="price" id="price">Waiting...</div>
+
+      <div class="status-row">
+        <span class="dot" id="statusDot"></span>
+        <span id="status">Connecting to market...</span>
+      </div>
+
+      <div class="updated">
+        Last update: <span id="updated">—</span>
+      </div>
+    </section>
+
+    <p class="note">
+      Read-only market data. This dashboard does not place trades.
     </p>
-
-    <div id="price" class="price">--</div>
-    <p class="muted" id="marketName">Market A</p>
-    <p class="muted">Last update: <span id="updated">--</span></p>
-
-    <button id="toggle">Pause updates</button>
-    <p class="muted">Demo only — prices are simulated, not live market data.</p>
   </main>
 
   <script src="script.js"></script>
