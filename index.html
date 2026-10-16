@@ -30,6 +30,37 @@
     .stat-label{font-size:10px;color:#6b7c93;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px}
     .stat-value{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
 
+    /* Live Price Feed (Ticker) */
+    .ticker-belt{
+      background:#0c111b;
+      border-top:1px solid #1e2a3d;
+      overflow:hidden;
+      white-space:nowrap;
+      padding:11px 0;
+      position:relative;
+    }
+    .ticker-track{
+      display:inline-flex;
+      gap:32px;
+      animation: scroll 35s linear infinite;
+      padding-left:100%;
+    }
+    .ticker-item{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      font-size:12.5px;
+      color:#9aabc0;
+    }
+    .ticker-item .name{font-weight:600;color:#c5d0e0}
+    .ticker-item .price{font-variant-numeric:tabular-nums;color:#e8edf5}
+    .ticker-item .pct.up{color:#2ee59d}
+    .ticker-item .pct.down{color:#ff5c6c}
+    @keyframes scroll{
+      0%{transform:translateX(0)}
+      100%{transform:translateX(-50%)}
+    }
+
     .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
     @media(max-width:540px){.controls{grid-template-columns:1fr}}
     .control-box{background:#121826;border:1px solid #1e2a3d;border-radius:12px;padding:14px}
@@ -139,6 +170,13 @@
           <div class="stat-value" id="status">Connecting...</div>
         </div>
       </div>
+
+      <!-- LIVE PRICE FEED -->
+      <div class="ticker-belt">
+        <div class="ticker-track" id="tickerTrack">
+          <!-- filled by JS -->
+        </div>
+      </div>
     </div>
 
     <!-- Controls -->
@@ -175,7 +213,7 @@
       </div>
       <div class="control-box">
         <label>Connection</label>
-        <div style="font-size:13px;color:#9aabc0;padding-top:8px" id="connInfo">Using public endpoint</div>
+        <div style="font-size:13px;color:#9aabc0;padding-top:8px" id="connInfo">Public endpoint</div>
       </div>
     </div>
 
@@ -239,6 +277,7 @@
     const overDigitInput = document.getElementById("overDigit");
     const underDigitInput = document.getElementById("underDigit");
     const lastDigitEl = document.getElementById("lastDigit");
+    const tickerTrack = document.getElementById("tickerTrack");
 
     let socket = null;
     let selectedSymbol = marketSelect.value;
@@ -251,8 +290,26 @@
     let dayHigh = null;
     let dayLow = null;
 
-    // The endpoint that worked in your test
     const WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
+
+    // Markets shown in the live price feed
+    const feedSymbols = [
+      {s:"1HZ10V", n:"V10 (1s)"},
+      {s:"1HZ25V", n:"V25 (1s)"},
+      {s:"1HZ50V", n:"V50 (1s)"},
+      {s:"1HZ75V", n:"V75 (1s)"},
+      {s:"R_10", n:"V10"},
+      {s:"R_25", n:"V25"},
+      {s:"R_50", n:"V50"},
+      {s:"R_75", n:"V75"},
+      {s:"R_100", n:"V100"},
+      {s:"BOOM1000", n:"Boom 1000"},
+      {s:"CRASH1000", n:"Crash 1000"},
+      {s:"frxEURUSD", n:"EUR/USD"},
+      {s:"frxXAUUSD", n:"Gold"},
+      {s:"cryBTCUSD", n:"BTC"}
+    ];
+    const feedData = {}; // symbol -> {price, prev}
 
     function setLive(on) {
       if (on) {
@@ -293,13 +350,41 @@
       });
     }
 
+    function updateFeed() {
+      let html = "";
+      // Duplicate for seamless loop
+      const list = [...feedSymbols, ...feedSymbols];
+      list.forEach(item => {
+        const d = feedData[item.s];
+        let priceStr = "—";
+        let pctStr = "";
+        let cls = "";
+
+        if (d) {
+          priceStr = formatPrice(d.price, 2);
+          if (d.prev && d.prev !== 0) {
+            const pct = ((d.price - d.prev) / d.prev * 100);
+            pctStr = (pct >= 0 ? "▲ +" : "▼ ") + Math.abs(pct).toFixed(2) + "%";
+            cls = pct >= 0 ? "up" : "down";
+          }
+        }
+
+        html += `
+          <div class="ticker-item">
+            <span class="name">${item.n}</span>
+            <span class="price">${priceStr}</span>
+            <span class="pct ${cls}">${pctStr}</span>
+          </div>`;
+      });
+      tickerTrack.innerHTML = html;
+    }
+
     function analyze() {
       const n = getSampleSize();
       const sample = ticks.slice(-n);
       const count = sample.length;
       if (count === 0) return;
 
-      // Even / Odd
       let even = 0, odd = 0;
       sample.forEach(t => t.digit % 2 === 0 ? even++ : odd++);
       const evenPct = ((even / count) * 100).toFixed(1);
@@ -310,7 +395,6 @@
       document.getElementById("oddPct").textContent = oddPct + "%";
       document.getElementById("eoBadge").textContent = count + " ticks";
 
-      // Over / Under
       const overD = getOverDigit();
       const underD = getUnderDigit();
       let over = 0, under = 0;
@@ -326,7 +410,6 @@
       document.getElementById("underPct").textContent = underPct + "%";
       document.getElementById("ouBadge").textContent = count + " ticks";
 
-      // Rise / Fall
       let rise = 0, fall = 0;
       for (let i = 1; i < sample.length; i++) {
         if (sample[i].quote > sample[i - 1].quote) rise++;
@@ -341,7 +424,6 @@
       document.getElementById("fallPct").textContent = fallPct + "%";
       document.getElementById("rfBadge").textContent = rfTotal + " moves";
 
-      // Digit frequency
       const freq = Array(10).fill(0);
       sample.forEach(t => freq[t.digit]++);
       let maxF = -1, minF = Infinity, most = [], least = [];
@@ -404,6 +486,13 @@
         setLive(true);
         subscribeToMarket(selectedSymbol);
 
+        // Subscribe feed symbols
+        feedSymbols.forEach(item => {
+          if (item.s !== selectedSymbol) {
+            socket.send(JSON.stringify({ ticks: item.s, subscribe: 1 }));
+          }
+        });
+
         pingInterval = setInterval(function () {
           if (socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ ping: 1 }));
@@ -425,14 +514,25 @@
         }
 
         if (data.msg_type === "tick" && data.tick) {
-          if (data.tick.symbol !== selectedSymbol) return;
+          const sym = data.tick.symbol;
+          const quote = Number(data.tick.quote);
+          const decimals = Number(data.tick.pip_size || 2);
+
+          // Update live feed data
+          if (!feedData[sym]) {
+            feedData[sym] = { price: quote, prev: quote };
+          } else {
+            feedData[sym].prev = feedData[sym].price;
+            feedData[sym].price = quote;
+          }
+          updateFeed();
+
+          // Main selected market
+          if (sym !== selectedSymbol) return;
 
           if (data.subscription && data.subscription.id) {
             subscriptionId = data.subscription.id;
           }
-
-          const quote = Number(data.tick.quote);
-          const decimals = Number(data.tick.pip_size || 2);
 
           mainPrice.textContent = formatPrice(quote, decimals);
 
@@ -517,6 +617,7 @@
 
     // Start
     connect();
+    updateFeed();
   </script>
 </body>
 </html>
