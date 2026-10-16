@@ -175,456 +175,359 @@
         <label>Over / Under boundary</label>
         <div class="digit-inputs">
           <div>
-            <label for="overDigit" style="font-size:10px;margin-bottom:4px">Over (digit &gt;)</label>
-            <input type="text" id="overDigit" value="5" inputmode="numeric" maxlength="1">
-          </div>
-          <div>
-            <label for="underDigit" style="font-size:10px;margin-bottom:4px">Under (digit &lt;)</label>
-            <input type="text" id="underDigit" value="5" inputmode="numeric" maxlength="1">
-          </div>
-        </div>
-      </div>
-      <div class="control-box">
-        <label>Connection</label>
-        <div style="font-size:13px;color:#9aabc0;padding-top:8px">Public endpoint</div>
-      </div>
-    </div>
+Over (digit >)
+Under (digit <)
+Connection
+Public endpoint
 
-    <div class="analysis-grid">
-      <div class="card">
-        <div class="card-title">Even / Odd <span class="badge" id="eoBadge">0 ticks</span></div>
-        <div class="bar-row"><div class="bar-label">Even</div><div class="bar-track"><div class="bar-fill even" id="evenBar" style="width:0%"></div></div><div class="bar-pct" id="evenPct">0%</div></div>
-        <div class="bar-row"><div class="bar-label">Odd</div><div class="bar-track"><div class="bar-fill odd" id="oddBar" style="width:0%"></div></div><div class="bar-pct" id="oddPct">0%</div></div>
-      </div>
+Even / Odd 0 ticks
+Even0%
+Odd0%
+Over / Under 0 ticks
+Over0%
+Under0%
+Rise / Fall 0 ticks
+Rise0%
+Fall0%
+Match / Differ 0 ticks
 
-      <div class="card">
-        <div class="card-title">Over / Under <span class="badge" id="ouBadge">0 ticks</span></div>
-        <div class="bar-row"><div class="bar-label">Over</div><div class="bar-track"><div class="bar-fill over" id="overBar" style="width:0%"></div></div><div class="bar-pct" id="overPct">0%</div></div>
-        <div class="bar-row"><div class="bar-label">Under</div><div class="bar-track"><div class="bar-fill under" id="underBar" style="width:0%"></div></div><div class="bar-pct" id="underPct">0%</div></div>
-      </div>
+Most: —
+Least: —
 
-      <div class="card">
-        <div class="card-title">Rise / Fall <span class="badge" id="rfBadge">0 ticks</span></div>
-        <div class="bar-row"><div class="bar-label">Rise</div><div class="bar-track"><div class="bar-fill rise" id="riseBar" style="width:0%"></div></div><div class="bar-pct" id="risePct">0%</div></div>
-        <div class="bar-row"><div class="bar-label">Fall</div><div class="bar-track"><div class="bar-fill fall" id="fallBar" style="width:0%"></div></div><div class="bar-pct" id="fallPct">0%</div></div>
-      </div>
 
-      <div class="card">
-        <div class="card-title">Match / Differ <span class="badge" id="mdBadge">0 ticks</span></div>
-        <div class="stats-summary" style="margin-top:0">
-          <div class="stat-pill most">Most: <strong id="mostDigit">—</strong></div>
-          <div class="stat-pill least">Least: <strong id="leastDigit">—</strong></div>
-        </div>
-        <div style="margin-top:12px;font-size:12px;color:#7a8ba3;line-height:1.5">
-          <strong style="color:#5b8def">Most</strong> = best Match<br>
-          <strong style="color:#f5b942">Least</strong> = best Differ
-        </div>
-      </div>
+Most = best Match
 
-      <div class="card full">
-        <div class="card-title">Digit Frequency (0–9) <span class="badge" id="digitBadge">0 ticks</span></div>
-        <div class="digit-table" id="digitTable"></div>
-        <div class="stats-summary">
-          <div class="stat-pill most">Most: <strong id="mostDigitFull">—</strong></div>
-          <div class="stat-pill least">Least: <strong id="leastDigitFull">—</strong></div>
-        </div>
-      </div>
-    </div>
+Least = best Differ
 
-    <p class="note">% change uses a reference price from earlier in the day (24h style). Analysis uses last N ticks.</p>
-  </div>
+Digit Frequency (0–9) 0 ticks
 
-  <script>
-    const marketSelect = document.getElementById("marketSelect");
-    const mainPrice = document.getElementById("mainPrice");
-    const changeRow = document.getElementById("changeRow");
-    const changeArrow = document.getElementById("changeArrow");
-    const changePct = document.getElementById("changePct");
-    const liveDot = document.getElementById("liveDot");
-    const liveText = document.getElementById("liveText");
-    const high24 = document.getElementById("high24");
-    const low24 = document.getElementById("low24");
-    const statusEl = document.getElementById("status");
-    const sampleSizeInput = document.getElementById("sampleSize");
-    const overDigitInput = document.getElementById("overDigit");
-    const underDigitInput = document.getElementById("underDigit");
-    const lastDigitEl = document.getElementById("lastDigit");
-    const tickerTrack = document.getElementById("tickerTrack");
 
-    let socket = null;
-    let selectedSymbol = marketSelect.value;
-    let subscriptionId = null;
-    let reconnectAttempts = 0;
-    let pingInterval = null;
-    let ticks = [];
-    const MAX_TICKS = 1000;
+Most: —
+Least: —
 
-    // Reference price for % change (from history)
-    let refPrice = null;
-    let dayHigh = null;
-    let dayLow = null;
 
-    const WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
-
-    const feedSymbols = [
-      {s:"1HZ10V", n:"V10 1s"},
-      {s:"1HZ25V", n:"V25 1s"},
-      {s:"1HZ50V", n:"V50 1s"},
-      {s:"1HZ75V", n:"V75 1s"},
-      {s:"R_25", n:"V25"},
-      {s:"R_50", n:"V50"},
-      {s:"R_75", n:"V75"},
-      {s:"R_100", n:"V100"},
-      {s:"BOOM1000", n:"Boom"},
-      {s:"CRASH1000", n:"Crash"},
-      {s:"frxEURUSD", n:"EURUSD"},
-      {s:"cryBTCUSD", n:"BTC"}
-    ];
-    const feedData = {};
-
-    function setLive(on) {
-      if (on) {
-        liveDot.classList.add("on");
-        liveText.textContent = "LIVE";
-        liveText.style.color = "#2ee59d";
-      } else {
-        liveDot.classList.remove("on");
-        liveText.textContent = "OFFLINE";
-        liveText.style.color = "#7a8ba3";
-      }
-    }
-
-    function getLastDigit(q) {
-      return parseInt(String(q).replace(".", "").slice(-1), 10);
-    }
-
-    function getSampleSize() {
-      let n = parseInt(sampleSizeInput.value, 10);
-      if (isNaN(n) || n < 1) n = 1;
-      if (n > 1000) n = 1000;
-      return n;
-    }
-
-    function getOverDigit() {
-      let d = parseInt(overDigitInput.value, 10);
-      return isNaN(d) ? 5 : Math.min(9, Math.max(0, d));
-    }
-    function getUnderDigit() {
-      let d = parseInt(underDigitInput.value, 10);
-      return isNaN(d) ? 5 : Math.min(9, Math.max(0, d));
-    }
-
-    function formatPrice(p, decimals = 2) {
-      return Number(p).toLocaleString(undefined, {
-        minimumFractionDigits: decimals,
-        maximumFractionDigits: decimals
-      });
-    }
-
-    function updateFeed() {
-      let html = "";
-      const list = [...feedSymbols, ...feedSymbols];
-      list.forEach(item => {
-        const d = feedData[item.s];
-        let priceStr = "—";
-        let pctStr = "";
-        let cls = "";
-        if (d && d.price) {
-          priceStr = formatPrice(d.price, 2);
-          if (d.prev && d.prev !== 0) {
-            const pct = ((d.price - d.prev) / d.prev) * 100;
-            pctStr = (pct >= 0 ? "▲+" : "▼") + Math.abs(pct).toFixed(2) + "%";
-            cls = pct >= 0 ? "up" : "down";
-          }
-        }
-        html += `<span class="ticker-item"><span class="name">${item.n}</span> <span class="price">${priceStr}</span> <span class="pct ${cls}">${pctStr}</span></span>`;
-      });
-      tickerTrack.innerHTML = html;
-    }
-
-    function analyze() {
-      const n = getSampleSize();
-      const sample = ticks.slice(-n);
-      const count = sample.length;
-      if (count === 0) return;
-
-      let even = 0, odd = 0;
-      sample.forEach(t => t.digit % 2 === 0 ? even++ : odd++);
-      const evenPct = ((even / count) * 100).toFixed(1);
-      const oddPct = ((odd / count) * 100).toFixed(1);
-      document.getElementById("evenBar").style.width = evenPct + "%";
-      document.getElementById("oddBar").style.width = oddPct + "%";
-      document.getElementById("evenPct").textContent = evenPct + "%";
-      document.getElementById("oddPct").textContent = oddPct + "%";
-      document.getElementById("eoBadge").textContent = count + " ticks";
-
-      const overD = getOverDigit();
-      const underD = getUnderDigit();
-      let over = 0, under = 0;
-      sample.forEach(t => {
-        if (t.digit > overD) over++;
-        if (t.digit < underD) under++;
-      });
-      const overPct = ((over / count) * 100).toFixed(1);
-      const underPct = ((under / count) * 100).toFixed(1);
-      document.getElementById("overBar").style.width = overPct + "%";
-      document.getElementById("underBar").style.width = underPct + "%";
-      document.getElementById("overPct").textContent = overPct + "%";
-      document.getElementById("underPct").textContent = underPct + "%";
-      document.getElementById("ouBadge").textContent = count + " ticks";
-
-      let rise = 0, fall = 0;
-      for (let i = 1; i < sample.length; i++) {
-        if (sample[i].quote > sample[i-1].quote) rise++;
-        else if (sample[i].quote < sample[i-1].quote) fall++;
-      }
-      const rfTotal = rise + fall;
-      const risePct = rfTotal ? ((rise / rfTotal) * 100).toFixed(1) : "0.0";
-      const fallPct = rfTotal ? ((fall / rfTotal) * 100).toFixed(1) : "0.0";
-      document.getElementById("riseBar").style.width = risePct + "%";
-      document.getElementById("fallBar").style.width = fallPct + "%";
-      document.getElementById("risePct").textContent = risePct + "%";
-      document.getElementById("fallPct").textContent = fallPct + "%";
-      document.getElementById("rfBadge").textContent = rfTotal + " moves";
-
-      const freq = Array(10).fill(0);
-      sample.forEach(t => freq[t.digit]++);
-      let maxF = -1, minF = Infinity, most = [], least = [];
-      freq.forEach((f, d) => {
-        if (f > maxF) { maxF = f; most = [d]; }
-        else if (f === maxF) most.push(d);
-        if (f < minF) { minF = f; least = [d]; }
-        else if (f === minF) least.push(d);
-      });
-
-      const lastDigit = sample[sample.length - 1].digit;
-      lastDigitEl.textContent = lastDigit;
-
-      const table = document.getElementById("digitTable");
-      table.innerHTML = "";
-      const maxBar = Math.max(...freq, 1);
-      for (let d = 0; d <= 9; d++) {
-        const pct = ((freq[d] / count) * 100).toFixed(1);
-        const h = Math.max(2, (freq[d] / maxBar) * 34);
-        const cell = document.createElement("div");
-        cell.className = "digit-cell";
-        if (d === lastDigit) cell.classList.add("active");
-        if (most.includes(d) && maxF > 0) cell.classList.add("most");
-        if (least.includes(d)) cell.classList.add("least");
-        cell.innerHTML = `
-          <div class="digit-num">${d}</div>
-          <div class="digit-bar-wrap"><div class="digit-bar" style="height:${h}px"></div></div>
-          <div class="digit-pct">${pct}%</div>
-          <div class="digit-count">${freq[d]}</div>`;
-        table.appendChild(cell);
-      }
-
-      document.getElementById("mostDigit").textContent = most.join(", ");
-      document.getElementById("leastDigit").textContent = least.join(", ");
-      document.getElementById("mostDigitFull").textContent = most.join(", ") + ` (${((maxF / count) * 100).toFixed(1)}%)`;
-      document.getElementById("leastDigitFull").textContent = least.join(", ") + ` (${((minF / count) * 100).toFixed(1)}%)`;
-      document.getElementById("mdBadge").textContent = count + " ticks";
-      document.getElementById("digitBadge").textContent = count + " ticks";
-    }
-
-    function connect() {
-      if (socket) {
-        try { socket.close(); } catch (e) {}
-        socket = null;
-      }
-      if (pingInterval) {
-        clearInterval(pingInterval);
-        pingInterval = null;
-      }
-
-      statusEl.textContent = "Connecting...";
-      setLive(false);
-
-      socket = new WebSocket(WS_URL);
-
-      socket.onopen = function () {
-        console.log("✅ Connected");
-        reconnectAttempts = 0;
-        statusEl.textContent = "Connected";
-        setLive(true);
-
-        // Subscribe main market
-        subscribeToMarket(selectedSymbol);
-
-        // Subscribe feed
-        feedSymbols.forEach(item => {
-          if (item.s !== selectedSymbol) {
-            socket.send(JSON.stringify({ ticks: item.s, subscribe: 1 }));
-          }
-        });
-
-        // Request history for reference price (24h style)
-        setTimeout(() => {
-          if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({
-              ticks_history: selectedSymbol,
-              adjust_start_time: 1,
-              count: 5000,
-              end: "latest",
-              start: 1,
-              style: "ticks"
-            }));
-          }
-        }, 800);
-
-        pingInterval = setInterval(function () {
-          if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ ping: 1 }));
-          }
-        }, 25000);
-      };
-
-      socket.onmessage = function (event) {
-        let data;
-        try {
-          data = JSON.parse(event.data);
-        } catch (e) {
-          return;
-        }
-
-        if (data.error) {
-          console.error(data.error);
-          return;
-        }
-
-        // History → set reference price for % change
-        if (data.msg_type === "history" && data.history && data.history.prices) {
-          const prices = data.history.prices.map(Number);
-          if (prices.length > 10) {
-            refPrice = prices[0];                 // oldest price in the window
-            dayHigh = Math.max(...prices);
-            dayLow = Math.min(...prices);
-            high24.textContent = formatPrice(dayHigh);
-            low24.textContent = formatPrice(dayLow);
-            console.log("Reference price set:", refPrice);
-          }
-          return;
-        }
-
-        if (data.msg_type === "tick" && data.tick) {
-          const sym = data.tick.symbol;
-          const quote = Number(data.tick.quote);
-          const decimals = Number(data.tick.pip_size || 2);
-
-          // Feed update
-          if (!feedData[sym]) {
-            feedData[sym] = { price: quote, prev: quote };
-          } else {
-            feedData[sym].prev = feedData[sym].price;
-            feedData[sym].price = quote;
-          }
-          updateFeed();
-
-          if (sym !== selectedSymbol) return;
-
-          if (data.subscription && data.subscription.id) {
-            subscriptionId = data.subscription.id;
-          }
-
-          mainPrice.textContent = formatPrice(quote, decimals);
-
-          // Calculate % using reference price (24h style)
-          if (refPrice && refPrice > 0) {
-            const pct = ((quote - refPrice) / refPrice) * 100;
-            const isUp = pct >= 0;
-            mainPrice.className = "main-price " + (isUp ? "up" : "down");
-            changeRow.className = "change-row " + (isUp ? "up" : "down");
-            changeArrow.textContent = isUp ? "▲" : "▼";
-            changePct.textContent = (isUp ? "+" : "") + pct.toFixed(2) + "%";
-          } else {
-            // Fallback while waiting for history
-            changePct.textContent = "—";
-          }
-
-          // Live high/low
-          if (dayHigh === null || quote > dayHigh) dayHigh = quote;
-          if (dayLow === null || quote < dayLow) dayLow = quote;
-          high24.textContent = formatPrice(dayHigh, decimals);
-          low24.textContent = formatPrice(dayLow, decimals);
-
-          const digit = getLastDigit(quote);
-          lastDigitEl.textContent = digit;
-
-          ticks.push({ quote, digit });
-          if (ticks.length > MAX_TICKS) ticks.shift();
-
-          analyze();
-        }
-      };
-
-      socket.onerror = function () {
-        statusEl.textContent = "Error";
-        setLive(false);
-      };
-
-      socket.onclose = function () {
-        setLive(false);
-        statusEl.textContent = "Reconnecting...";
-        if (pingInterval) {
-          clearInterval(pingInterval);
-          pingInterval = null;
-        }
-        if (reconnectAttempts < 12) {
-          const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 8000);
-          reconnectAttempts++;
-          setTimeout(connect, delay);
-        } else {
-          statusEl.textContent = "Failed. Refresh.";
-        }
-      };
-    }
-
-    function subscribeToMarket(symbol) {
-      selectedSymbol = symbol;
-      ticks = [];
-      refPrice = null;
-      dayHigh = null;
-      dayLow = null;
-      lastDigitEl.textContent = "—";
-      mainPrice.textContent = "—";
-      changePct.textContent = "0.00%";
-      high24.textContent = "—";
-      low24.textContent = "—";
-
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
-
-      if (subscriptionId) {
-        socket.send(JSON.stringify({ forget: subscriptionId }));
-        subscriptionId = null;
-      }
-
-      statusEl.textContent = "Loading...";
-      socket.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
-
-      // Request history again for new market
-      setTimeout(() => {
-        if (socket && socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({
-            ticks_history: symbol,
-            adjust_start_time: 1,
-            count: 5000,
-            end: "latest",
-            start: 1,
-            style: "ticks"
-          }));
-        }
-      }, 600);
-    }
-
-    marketSelect.addEventListener("change", function () {
-      subscribeToMarket(marketSelect.value);
-    });
-    sampleSizeInput.addEventListener("input", analyze);
-    overDigitInput.addEventListener("input", analyze);
-    underDigitInput.addEventListener("input", analyze);
-
-    connect();
-    updateFeed();
+% change uses a reference price from earlier in the day (24h style). Analysis uses last N ticks.
+const marketSelect = document.getElementById("marketSelect");
+const mainPrice = document.getElementById("mainPrice");
+const changeRow = document.getElementById("changeRow");
+const changeArrow = document.getElementById("changeArrow");
+const changePct = document.getElementById("changePct");
+const liveDot = document.getElementById("liveDot");
+const liveText = document.getElementById("liveText");
+const high24 = document.getElementById("high24");
+const low24 = document.getElementById("low24");
+const statusEl = document.getElementById("status");
+const sampleSizeInput = document.getElementById("sampleSize");
+const overDigitInput = document.getElementById("overDigit");
+const underDigitInput = document.getElementById("underDigit");
+const lastDigitEl = document.getElementById("lastDigit");
+const tickerTrack = document.getElementById("tickerTrack");
+let socket = null;
+let selectedSymbol = marketSelect.value;
+let subscriptionId = null;
+let reconnectAttempts = 0;
+let pingInterval = null;
+let ticks = [];
+const MAX_TICKS = 1000;
+// Reference price for % change (from 24h candle open)
+let refPrice = null;
+let dayHigh = null;
+let dayLow = null;
+const WS_URL = "wss://derivws.com";
+const feedSymbols = [
+{s:"1HZ10V", n:"V10 1s"},
+{s:"1HZ25V", n:"V25 1s"},
+{s:"1HZ50V", n:"V50 1s"},
+{s:"1HZ75V", n:"V75 1s"},
+{s:"R_25", n:"V25"},
+{s:"R_50", n:"V50"},
+{s:"R_75", n:"V75"},
+{s:"R_100", n:"V100"},
+{s:"BOOM1000", n:"Boom"},
+{s:"CRASH1000", n:"Crash"},
+{s:"frxEURUSD", n:"EURUSD"},
+{s:"cryBTCUSD", n:"BTC"}
+];
+const feedData = {};
+function setLive(on) {
+if (on) {
+liveDot.classList.add("on");
+liveText.textContent = "LIVE";
+liveText.style.color = "#2ee59d";
+} else {
+liveDot.classList.remove("remove");
+liveText.textContent = "OFFLINE";
+liveText.style.color = "#7a8ba3";
+}
+}
+function getLastDigit(q) {
+return parseInt(String(q).replace(".", "").slice(-1), 10);
+}
+function getSampleSize() {
+let n = parseInt(sampleSizeInput.value, 10);
+if (isNaN(n) || n < 1) n = 1;
+if (n > 1000) n = 1000;
+return n;
+}
+function getOverDigit() {
+let d = parseInt(overDigitInput.value, 10);
+return isNaN(d) ? 5 : Math.min(9, Math.max(0, d));
+}
+function getUnderDigit() {
+let d = parseInt(underDigitInput.value, 10);
+return isNaN(d) ? 5 : Math.min(9, Math.max(0, d));
+}
+function formatPrice(p, decimals = 2) {
+return Number(p).toLocaleString(undefined, {
+minimumFractionDigits: decimals,
+maximumFractionDigits: decimals
+});
+}
+function updateFeed() {
+let html = "";
+const list = [...feedSymbols, ...feedSymbols];
+list.forEach(item => {
+const d = feedData[item.s];
+let priceStr = "—";
+let pctStr = "";
+let cls = "";
+if (d && d.price) {
+priceStr = formatPrice(d.price, 2);
+if (d.open1m && d.open1m !== 0) {
+// Asset panel below calculated on rolling 1-minute time blocks
+const pct = ((d.price - d.open1m) / d.open1m) * 100;
+pctStr = (pct >= 0 ? "▲+" : "▼") + Math.abs(pct).toFixed(2) + "%";
+cls = pct >= 0 ? "up" : "down";
+}
+}
+html += <span class="ticker-item"><span class="name">${item.n}</span> <span class="price">${priceStr}</span> <span class="pct ${cls}">${pctStr}</span></span>;
+});
+tickerTrack.innerHTML = html;
+}
+function analyze() {
+const n = getSampleSize();
+const sample = ticks.slice(-n);
+const count = sample.length;
+if (count === 0) return;
+let even = 0, odd = 0;
+sample.forEach(t => t.digit % 2 === 0 ? even++ : odd++);
+const evenPct = ((even / count) * 100).toFixed(1);
+const oddPct = ((odd / count) * 100).toFixed(1);
+document.getElementById("evenBar").style.width = evenPct + "%";
+document.getElementById("oddBar").style.width = oddPct + "%";
+document.getElementById("evenPct").textContent = evenPct + "%";
+document.getElementById("oddPct").textContent = oddPct + "%";
+document.getElementById("eoBadge").textContent = count + " ticks";
+const overD = getOverDigit();
+const underD = getUnderDigit();
+let over = 0, under = 0;
+sample.forEach(t => {
+if (t.digit > overD) over++;
+if (t.digit < underD) under++;
+});
+const overPct = ((over / count) * 100).toFixed(1);
+const underPct = ((under / count) * 100).toFixed(1);
+document.getElementById("overBar").style.width = overPct + "%";
+document.getElementById("underBar").style.width = underPct + "%";
+document.getElementById("overPct").textContent = overPct + "%";
+document.getElementById("underPct").textContent = underPct + "%";
+document.getElementById("ouBadge").textContent = count + " ticks";
+let rise = 0, fall = 0;
+for (let i = 1; i < sample.length; i++) {
+if (sample[i].quote > sample[i-1].quote) rise++;
+else if (sample[i].quote < sample[i-1].quote) fall++;
+}
+const rfTotal = rise + fall;
+const risePct = rfTotal ? ((rise / rfTotal) * 100).toFixed(1) : "0.0";
+const fallPct = rfTotal ? ((fall / rfTotal) * 100).toFixed(1) : "0.0";
+document.getElementById("riseBar").style.width = risePct + "%";
+document.getElementById("fallBar").style.width = fallPct + "%";
+document.getElementById("risePct").textContent = risePct + "%";
+document.getElementById("fallPct").textContent = fallPct + "%";
+document.getElementById("rfBadge").textContent = rfTotal + " moves";
+const freq = Array(10).fill(0);
+sample.forEach(t => freq[t.digit]++);
+let maxF = -1, minF = Infinity, most = [], least = [];
+freq.forEach((f, d) => {
+if (f > maxF) { maxF = f; most = [d]; }
+else if (f === maxF) most.push(d);
+if (f < minF) { minF = f; least = [d]; }
+else if (f === minF) least.push(d);
+});
+const lastDigit = sample[sample.length - 1].digit;
+lastDigitEl.textContent = lastDigit;
+const table = document.getElementById("digitTable");
+table.innerHTML = "";
+const maxBar = Math.max(...freq, 1);
+for (let d = 0; d <= 9; d++) {
+const pct = ((freq[d] / count) * 100).toFixed(1);
+const h = Math.max(2, (freq[d] / maxBar) * 34);
+const cell = document.createElement("div");
+cell.className = "digit-cell";
+if (d === lastDigit) cell.classList.add("active");
+if (most.includes(d) && maxF > 0) cell.classList.add("most");
+if (least.includes(d)) cell.classList.add("least");
+cell.innerHTML =  <div class="digit-num">${d}</div> <div class="digit-bar-wrap"><div class="digit-bar" style="height:${h}px"></div></div> <div class="digit-pct">${pct}%</div> <div class="digit-count">${freq[d]}</div>;
+table.appendChild(cell);
+}
+document.getElementById("mostDigit").textContent = most.join(", ");
+document.getElementById("leastDigit").textContent = least.join(", ");
+document.getElementById("mostDigitFull").textContent = most.join(", ") +  (${((maxF / count) * 100).toFixed(1)}%);
+document.getElementById("leastDigitFull").textContent = least.join(", ") +  (${((minF / count) * 100).toFixed(1)}%);
+document.getElementById("mdBadge").textContent = count + " ticks";
+document.getElementById("digitBadge").textContent = count + " ticks";
+}
+function connect() {
+if (socket) {
+try { socket.close(); } catch (e) {}
+socket = null;
+}
+if (pingInterval) {
+clearInterval(pingInterval);
+pingInterval = null;
+}
+statusEl.textContent = "Connecting...";
+setLive(false);
+socket = new WebSocket(WS_URL);
+socket.onopen = function () {
+console.log("✅ Connected");
+reconnectAttempts = 0;
+statusEl.textContent = "Connected";
+setLive(true);
+subscribeToMarket(selectedSymbol);
+feedSymbols.forEach(item => {
+socket.send(JSON.stringify({ ticks: item.s, subscribe: 1 }));
+});
+pingInterval = setInterval(function () {
+if (socket && socket.readyState === WebSocket.OPEN) {
+socket.send(JSON.stringify({ ping: 1 }));
+}
+}, 25000);
+};
+socket.onmessage = function (event) {
+let data;
+try {
+data = JSON.parse(event.data);
+} catch (e) {
+return;
+}
+if (data.error) {
+console.error(data.error);
+return;
+}
+// True 24h Candle Open Reference logic to match DT Nexus perfectly
+if (data.msg_type === "candles" && data.candles && data.candles.length > 0) {
+if (data.echo_req && data.echo_req.ticks_history === selectedSymbol) {
+const candle = data.candles[0];
+refPrice = Number(candle.open);
+dayHigh = Number(candle.high);
+dayLow = Number(candle.low);
+high24.textContent = formatPrice(dayHigh);
+low24.textContent = formatPrice(dayLow);
+statusEl.textContent = "Live";
+}
+return;
+}
+if (data.msg_type === "tick" && data.tick) {
+const sym = data.tick.symbol;
+const quote = Number(data.tick.quote);
+const decimals = Number(data.tick.pip_size || 2);
+// Track 1-minute open prices locally for running list items so they don't break or stick
+if (!feedData[sym]) {
+feedData[sym] = { price: quote, prev: quote, open1m: quote, lastReset: Date.now() };
+} else {
+feedData[sym].prev = feedData[sym].price;
+feedData[sym].price = quote;
+if (Date.now() - feedData[sym].lastReset > 60000) {
+feedData[sym].open1m = quote;
+feedData[sym].lastReset = Date.now();
+}
+}
+updateFeed();
+if (sym !== selectedSymbol) return;
+// Clear loading status on active incoming ticks
+statusEl.textContent = "Live";
+if (data.subscription && data.subscription.id) {
+subscriptionId = data.subscription.id;
+}
+mainPrice.textContent = formatPrice(quote, decimals);
+if (refPrice && refPrice > 0) {
+const pct = ((quote - refPrice) / refPrice) * 100;
+const isUp = pct >= 0;
+mainPrice.className = "main-price " + (isUp ? "up" : "down");
+changeRow.className = "change-row " + (isUp ? "up" : "down");
+changeArrow.textContent = isUp ? "▲" : "▼";
+changePct.textContent = (isUp ? "+" : "") + pct.toFixed(2) + "%";
+} else {
+changePct.textContent = "—";
+}
+if (dayHigh === null || quote > dayHigh) dayHigh = quote;
+if (dayLow === null || quote < dayLow) dayLow = quote;
+high24.textContent = formatPrice(dayHigh, decimals);
+low24.textContent = formatPrice(dayLow, decimals);
+const digit = getLastDigit(quote);
+lastDigitEl.textContent = digit;
+ticks.push({ quote, digit });
+if (ticks.length > MAX_TICKS) ticks.shift();
+analyze();
+}
+};
+socket.onerror = function () {
+statusEl.textContent = "Error";
+setLive(false);
+};
+socket.onclose = function () {
+setLive(false);
+statusEl.textContent = "Reconnecting...";
+if (pingInterval) {
+clearInterval(pingInterval);
+pingInterval = null;
+}
+if (reconnectAttempts < 12) {
+const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 8000);
+reconnectAttempts++;
+setTimeout(connect, delay);
+} else {
+statusEl.textContent = "Failed. Refresh.";
+}
+};
+}
+function subscribeToMarket(symbol) {
+selectedSymbol = symbol;
+ticks = [];
+refPrice = null;
+dayHigh = null;
+dayLow = null;
+lastDigitEl.textContent = "—";
+mainPrice.textContent = "—";
+changePct.textContent = "0.00%";
+high24.textContent = "—";
+low24.textContent = "—";
+if (!socket || socket.readyState !== WebSocket.OPEN) return;
+if (subscriptionId) {
+socket.send(JSON.stringify({ forget: subscriptionId }));
+subscriptionId = null;
+}
+statusEl.textContent = "Loading...";
+socket.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+// Fetch precise 24-hour style baseline candle metrics
+socket.send(JSON.stringify({
+ticks_history: symbol,
+adjust_start_time: 1,
+count: 1,
+end: "latest",
+granularity: 86400,
+style: "candles"
+}));
+}
+marketSelect.addEventListener("change", function () {
+subscribeToMarket(marketSelect.value);
+});
+sampleSizeInput.addEventListener("input", analyze);
+overDigitInput.addEventListener("input", analyze);
+underDigitInput.addEventListener("input", analyze);
+connect();
+updateFeed();
   </script>
 </body>
 </html>
