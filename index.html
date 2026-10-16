@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Deriv Live Market</title>
 
+  <!-- Lightweight Charts by TradingView -->
+  <script src="https://unpkg.com/lightweight-charts@5.0.5/dist/lightweight-charts.standalone.production.js"></script>
+
   <style>
     * {
       box-sizing: border-box;
@@ -90,7 +93,7 @@
     }
 
     .price-label {
-      margin-top: 30px;
+      margin-top: 26px;
       color: #91a4bc;
       font-size: 13px;
     }
@@ -107,7 +110,7 @@
       display: flex;
       align-items: center;
       gap: 9px;
-      margin-top: 22px;
+      margin-top: 20px;
       color: #c1cddd;
       font-size: 13px;
     }
@@ -134,6 +137,16 @@
       font-size: 12px;
     }
 
+    /* Chart styles */
+    .chart-container {
+      margin-top: 24px;
+      height: 220px;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid #2b3c52;
+      background: #0a1322;
+    }
+
     .note {
       margin-top: 22px;
       color: #8193ab;
@@ -147,7 +160,7 @@
   <main class="dashboard">
     <div class="brand">Deriv Market Data</div>
     <h1>Live Price</h1>
-    <p class="subtitle">Real-time market prices</p>
+    <p class="subtitle">Real-time market prices + mini chart</p>
 
     <label for="marketSelect">Select market</label>
 
@@ -197,6 +210,9 @@
       <div class="updated">
         Last update: <span id="updated">—</span>
       </div>
+
+      <!-- Mini Chart -->
+      <div id="chart" class="chart-container"></div>
     </section>
 
     <p class="note">
@@ -212,6 +228,7 @@
     const statusElement = document.getElementById("status");
     const statusDot = document.getElementById("statusDot");
     const updatedElement = document.getElementById("updated");
+    const chartContainer = document.getElementById("chart");
 
     let socket = null;
     let selectedSymbol = marketSelect.value;
@@ -219,6 +236,49 @@
     let reconnectAttempts = 0;
     const MAX_RECONNECT_ATTEMPTS = 12;
     let pingInterval = null;
+
+    // ========== Chart Setup ==========
+    const chart = LightweightCharts.createChart(chartContainer, {
+      layout: {
+        background: { type: 'solid', color: '#0a1322' },
+        textColor: '#8499b4',
+      },
+      grid: {
+        vertLines: { color: '#1a2738' },
+        horzLines: { color: '#1a2738' },
+      },
+      width: chartContainer.clientWidth,
+      height: 220,
+      rightPriceScale: {
+        borderColor: '#2b3c52',
+      },
+      timeScale: {
+        borderColor: '#2b3c52',
+        timeVisible: true,
+        secondsVisible: true,
+      },
+      crosshair: {
+        mode: LightweightCharts.CrosshairMode.Normal,
+      },
+    });
+
+    const lineSeries = chart.addSeries(LightweightCharts.LineSeries, {
+      color: '#36d6a5',
+      lineWidth: 2,
+      crosshairMarkerVisible: true,
+      crosshairMarkerRadius: 4,
+      lastValueVisible: true,
+      priceLineVisible: true,
+    });
+
+    // Keep only last ~120 points so the chart stays clean
+    const MAX_POINTS = 120;
+    let chartData = [];
+
+    // Handle window resize
+    window.addEventListener('resize', () => {
+      chart.applyOptions({ width: chartContainer.clientWidth });
+    });
 
     function setStatus(message, state = "connecting") {
       statusElement.textContent = message;
@@ -231,7 +291,6 @@
     }
 
     function connect() {
-      // Clean up previous connection
       if (socket) {
         socket.onopen = null;
         socket.onmessage = null;
@@ -245,7 +304,6 @@
         pingInterval = null;
       }
 
-      // Official public endpoint (no app_id needed)
       socket = new WebSocket("wss://api.derivws.com/trading/v1/options/ws/public");
 
       setStatus("Connecting...", "connecting");
@@ -257,7 +315,6 @@
         setStatus("Connected — loading price");
         subscribeToMarket(selectedSymbol);
 
-        // Keep-alive ping every 30 seconds
         pingInterval = setInterval(() => {
           if (socket && socket.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ ping: 1 }));
@@ -274,7 +331,6 @@
           return;
         }
 
-        // Handle API errors
         if (data.error) {
           console.error("Deriv API error:", data.error);
           setStatus(data.error.message || "API Error", "error");
@@ -282,19 +338,36 @@
           return;
         }
 
-        // Handle tick data
         if (data.msg_type === "tick" && data.tick) {
-          // Ignore ticks from other symbols
           if (data.tick.symbol !== selectedSymbol) return;
 
           if (data.subscription && data.subscription.id) {
             subscriptionId = data.subscription.id;
           }
 
+          const quote = Number(data.tick.quote);
           const decimals = Number(data.tick.pip_size ?? 2);
-          priceElement.textContent = Number(data.tick.quote).toFixed(decimals);
+          const epoch = data.tick.epoch; // Unix timestamp in seconds
+
+          // Update price display
+          priceElement.textContent = quote.toFixed(decimals);
           updatedElement.textContent = new Date().toLocaleTimeString();
           setStatus("Live price connected", "connected");
+
+          // Update chart
+          const point = { time: epoch, value: quote };
+          chartData.push(point);
+
+          // Keep only last MAX_POINTS
+          if (chartData.length > MAX_POINTS) {
+            chartData.shift();
+          }
+
+          // Update the series (real-time style)
+          lineSeries.update(point);
+
+          // Auto-scroll to the latest tick
+          chart.timeScale().scrollToRealTime();
         }
       });
 
@@ -313,7 +386,6 @@
           pingInterval = null;
         }
 
-        // Auto reconnect with exponential backoff
         if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
           const delay = Math.min(1000 * Math.pow(1.8, reconnectAttempts), 16000);
           reconnectAttempts++;
@@ -328,13 +400,16 @@
     function subscribeToMarket(symbol) {
       selectedSymbol = symbol;
 
+      // Clear previous chart data when switching market
+      chartData = [];
+      lineSeries.setData([]);
+
       if (!socket || socket.readyState !== WebSocket.OPEN) {
         priceElement.textContent = "Loading...";
         setStatus("Connecting to market...");
         return;
       }
 
-      // Unsubscribe from previous stream
       if (subscriptionId) {
         socket.send(JSON.stringify({ forget: subscriptionId }));
         subscriptionId = null;
@@ -364,10 +439,8 @@
       }
     }
 
-    // Start connection when page loads
+    // Start everything
     connect();
-
-    // Handle market changes
     marketSelect.addEventListener("change", updateSelectedMarket);
   </script>
 </body>
