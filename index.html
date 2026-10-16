@@ -505,44 +505,56 @@
     let selectedSymbol = marketSelect.value;
     let subscriptionId = null;
     let reconnectAttempts = 0;
-    const MAX_RECONNECT_ATTEMPTS = 12;
+    const MAX_RECONNECT_ATTEMPTS = 15;
     let pingInterval = null;
     let ticks = [];
     const MAX_TICKS = 1000;
 
+    // Try new endpoint first, then fall back to the old reliable one
+    const ENDPOINTS = [
+      "wss://ws.derivws.com/websockets/v3?app_id=1089",          // Old reliable
+      "wss://api.derivws.com/trading/v1/options/ws/public"       // New public
+    ];
+    let currentEndpointIndex = 0;
+
     // ========== Chart ==========
-    const chart = LightweightCharts.createChart(chartContainer, {
-      layout: {
-        background: { type: 'solid', color: '#0a1322' },
-        textColor: '#8499b4',
-      },
-      grid: {
-        vertLines: { color: '#1a2738' },
-        horzLines: { color: '#1a2738' },
-      },
-      width: chartContainer.clientWidth,
-      height: 200,
-      rightPriceScale: { borderColor: '#2b3c52' },
-      timeScale: {
-        borderColor: '#2b3c52',
-        timeVisible: true,
-        secondsVisible: true,
-      },
-      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
-    });
+    let chart, lineSeries;
+    try {
+      chart = LightweightCharts.createChart(chartContainer, {
+        layout: {
+          background: { type: 'solid', color: '#0a1322' },
+          textColor: '#8499b4',
+        },
+        grid: {
+          vertLines: { color: '#1a2738' },
+          horzLines: { color: '#1a2738' },
+        },
+        width: chartContainer.clientWidth,
+        height: 200,
+        rightPriceScale: { borderColor: '#2b3c52' },
+        timeScale: {
+          borderColor: '#2b3c52',
+          timeVisible: true,
+          secondsVisible: true,
+        },
+        crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      });
 
-    const lineSeries = chart.addSeries(LightweightCharts.LineSeries, {
-      color: '#36d6a5',
-      lineWidth: 2,
-      crosshairMarkerVisible: true,
-      crosshairMarkerRadius: 4,
-      lastValueVisible: true,
-      priceLineVisible: true,
-    });
+      lineSeries = chart.addSeries(LightweightCharts.LineSeries, {
+        color: '#36d6a5',
+        lineWidth: 2,
+        crosshairMarkerVisible: true,
+        crosshairMarkerRadius: 4,
+        lastValueVisible: true,
+        priceLineVisible: true,
+      });
 
-    window.addEventListener('resize', () => {
-      chart.applyOptions({ width: chartContainer.clientWidth });
-    });
+      window.addEventListener('resize', () => {
+        if (chart) chart.applyOptions({ width: chartContainer.clientWidth });
+      });
+    } catch (e) {
+      console.error("Chart init failed:", e);
+    }
 
     // ========== Helpers ==========
     function setStatus(message, state = "connecting") {
@@ -674,24 +686,39 @@
       }
       if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
 
-      socket = new WebSocket("wss://api.derivws.com/trading/v1/options/ws/public");
-      setStatus("Connecting...", "connecting");
+      const url = ENDPOINTS[currentEndpointIndex];
+      console.log("Connecting to:", url);
+      setStatus("Connecting... (" + (currentEndpointIndex === 0 ? "legacy" : "new") + ")", "connecting");
+
+      try {
+        socket = new WebSocket(url);
+      } catch (e) {
+        console.error("WebSocket constructor failed:", e);
+        setStatus("WebSocket not supported", "error");
+        return;
+      }
 
       socket.addEventListener("open", () => {
-        console.log("✅ WebSocket connected");
+        console.log("✅ WebSocket connected to", url);
         reconnectAttempts = 0;
-        setStatus("Connected — loading price");
+        setStatus("Connected — loading price", "connecting");
         subscribeToMarket(selectedSymbol);
+
         pingInterval = setInterval(() => {
           if (socket?.readyState === WebSocket.OPEN) {
             socket.send(JSON.stringify({ ping: 1 }));
           }
-        }, 30000);
+        }, 25000);
       });
 
       socket.addEventListener("message", (event) => {
         let data;
         try { data = JSON.parse(event.data); } catch { return; }
+
+        // Log first few messages for debugging
+        if (ticks.length < 3) {
+          console.log("Received:", data);
+        }
 
         if (data.error) {
           console.error("Deriv API error:", data.error);
@@ -717,27 +744,49 @@
           ticks.push({ epoch, quote, digit });
           if (ticks.length > MAX_TICKS) ticks.shift();
 
-          lineSeries.update({ time: epoch, value: quote });
-          chart.timeScale().scrollToRealTime();
+          // Update chart
+          try {
+            if (lineSeries) {
+              lineSeries.update({ time: epoch, value: quote });
+              chart.timeScale().scrollToRealTime();
+            }
+          } catch (e) {
+            // Ignore chart errors so analysis still works
+          }
 
           analyze();
         }
       });
 
-      socket.addEventListener("error", () => setStatus("Connection error", "error"));
+      socket.addEventListener("error", (err) => {
+        console.error("WebSocket error:", err);
+        setStatus("Connection error", "error");
+      });
 
       socket.addEventListener("close", (event) => {
         console.log("WebSocket closed:", event.code, event.reason);
         subscriptionId = null;
         setStatus("Disconnected — reconnecting...", "error");
-        if (pingInterval) { clearInterval(pingInterval); pingInterval = null; }
+
+        if (pingInterval) {
+          clearInterval(pingInterval);
+          pingInterval = null;
+        }
+
+        // Switch endpoint after a few failures
+        if (reconnectAttempts >= 3) {
+          currentEndpointIndex = (currentEndpointIndex + 1) % ENDPOINTS.length;
+          console.log("Switching to endpoint index:", currentEndpointIndex);
+          reconnectAttempts = 0;
+        }
 
         if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          const delay = Math.min(1000 * Math.pow(1.8, reconnectAttempts), 16000);
+          const delay = Math.min(1000 * Math.pow(1.6, reconnectAttempts), 12000);
           reconnectAttempts++;
+          console.log(`Reconnecting in ${Math.round(delay)}ms (attempt ${reconnectAttempts})`);
           setTimeout(connect, delay);
         } else {
-          setStatus("Failed to reconnect. Please refresh.", "error");
+          setStatus("Failed to reconnect. Please refresh the page.", "error");
         }
       });
     }
@@ -745,8 +794,9 @@
     function subscribeToMarket(symbol) {
       selectedSymbol = symbol;
 
+      // Reset on market switch
       ticks = [];
-      lineSeries.setData([]);
+      try { if (lineSeries) lineSeries.setData([]); } catch(e) {}
       sampleCountEl.textContent = '0';
       lastDigitEl.textContent = '—';
       ['even','odd','over','under','rise','fall'].forEach(id => {
@@ -772,7 +822,11 @@
       updatedElement.textContent = "—";
       setStatus("Loading " + symbol + "...");
 
-      socket.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+      // Send subscription
+      socket.send(JSON.stringify({
+        ticks: symbol,
+        subscribe: 1
+      }));
     }
 
     function updateSelectedMarket() {
@@ -791,6 +845,7 @@
     underDigitInput.addEventListener('input',  analyze);
     marketSelect.addEventListener('change', updateSelectedMarket);
 
+    // Start
     connect();
   </script>
 </body>
