@@ -4,40 +4,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Deriv Market Analyzer</title>
-  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{min-height:100vh;background:#0a0e17;color:#e8edf5;font-family:'Segoe UI',system-ui,sans-serif;padding:16px}
-    .container{max-width:980px;margin:0 auto}
+    .container{max-width:900px;margin:0 auto}
 
-    .overview-panel{background:#121826;border:1px solid #1e2a3d;border-radius:16px;overflow:hidden;margin-bottom:20px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+    .overview-panel{background:#121826;border:1px solid #1e2a3d;border-radius:16px;overflow:hidden;margin-bottom:20px}
     .overview-header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid #1e2a3d;background:#0f1520}
-    .market-select-wrap{display:flex;align-items:center;gap:10px;position:relative}
+    .market-select-wrap{position:relative}
     .market-select-wrap select{appearance:none;background:transparent;border:none;color:#c5d0e0;font-size:13px;font-weight:600;letter-spacing:.6px;text-transform:uppercase;cursor:pointer;padding-right:18px;outline:none}
-    .market-select-wrap::after{content:"▾";position:absolute;right:0;color:#7a8ba3;font-size:11px;pointer-events:none}
+    .market-select-wrap::after{content:"▾";position:absolute;right:0;top:1px;color:#7a8ba3;font-size:11px;pointer-events:none}
     .live-badge{display:flex;align-items:center;gap:7px;font-size:11px;font-weight:700;letter-spacing:1px;color:#7a8ba3}
     .live-dot{width:8px;height:8px;border-radius:50%;background:#ff5c6c}
     .live-dot.on{background:#2ee59d;box-shadow:0 0 8px #2ee59d80}
 
-    .price-section{padding:20px 20px 8px}
-    .main-price{font-size:clamp(28px,7vw,38px);font-weight:700;font-variant-numeric:tabular-nums}
+    .price-section{padding:22px 20px}
+    .main-price{font-size:clamp(30px,8vw,40px);font-weight:700;font-variant-numeric:tabular-nums}
     .main-price.up{color:#2ee59d}.main-price.down{color:#ff5c6c}
-    .change-row{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:14px;font-weight:600}
+    .change-row{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:15px;font-weight:600}
     .change-row.up{color:#2ee59d}.change-row.down{color:#ff5c6c}
 
-    .chart-area{height:180px;margin:0 8px}
-    .stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid #1e2a3d;margin-top:8px}
-    .stat-box{padding:14px 16px;text-align:center;border-right:1px solid #1e2a3d}
+    .stats-row{display:grid;grid-template-columns:1fr 1fr 1fr;border-top:1px solid #1e2a3d}
+    .stat-box{padding:14px;text-align:center;border-right:1px solid #1e2a3d}
     .stat-box:last-child{border-right:none}
     .stat-label{font-size:10px;color:#6b7c93;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px}
     .stat-value{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
-
-    .ticker-belt{background:#0c111b;border-top:1px solid #1e2a3d;overflow:hidden;white-space:nowrap;padding:10px 0}
-    .ticker-track{display:inline-flex;gap:28px;animation:scroll 40s linear infinite;padding-left:100%}
-    .ticker-item{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:#9aabc0}
-    .ticker-item .name{font-weight:600;color:#c5d0e0}
-    .ticker-item .pct.up{color:#2ee59d}.ticker-item .pct.down{color:#ff5c6c}
-    @keyframes scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 
     .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
     @media(max-width:540px){.controls{grid-template-columns:1fr}}
@@ -90,6 +81,7 @@
 <body>
   <div class="container">
 
+    <!-- Overview Panel -->
     <div class="overview-panel">
       <div class="overview-header">
         <div class="market-select-wrap">
@@ -133,8 +125,6 @@
         </div>
       </div>
 
-      <div class="chart-area" id="chart"></div>
-
       <div class="stats-row">
         <div class="stat-box">
           <div class="stat-label">24H High</div>
@@ -145,16 +135,13 @@
           <div class="stat-value" id="low24">—</div>
         </div>
         <div class="stat-box">
-          <div class="stat-label">Execution</div>
-          <div class="stat-value">&lt; 1 ms</div>
+          <div class="stat-label">Status</div>
+          <div class="stat-value" id="status">Connecting...</div>
         </div>
-      </div>
-
-      <div class="ticker-belt">
-        <div class="ticker-track" id="tickerTrack"></div>
       </div>
     </div>
 
+    <!-- Controls -->
     <div class="controls">
       <div class="control-box">
         <label for="sampleSize">Ticks to analyze (1–1000)</label>
@@ -187,11 +174,12 @@
         </div>
       </div>
       <div class="control-box">
-        <label>Status</label>
-        <div style="font-size:13px;color:#9aabc0;padding-top:6px" id="status">Connecting...</div>
+        <label>Connection</label>
+        <div style="font-size:13px;color:#9aabc0;padding-top:8px" id="connInfo">Using public endpoint</div>
       </div>
     </div>
 
+    <!-- Analysis -->
     <div class="analysis-grid">
       <div class="card">
         <div class="card-title">Even / Odd <span class="badge" id="eoBadge">0 ticks</span></div>
@@ -233,7 +221,7 @@
       </div>
     </div>
 
-    <p class="note">Read-only market data. Analysis always uses the last N ticks you set. This tool does not place trades.</p>
+    <p class="note">Read-only. Uses last N ticks. No trades are placed.</p>
   </div>
 
   <script>
@@ -251,8 +239,6 @@
     const overDigitInput = document.getElementById("overDigit");
     const underDigitInput = document.getElementById("underDigit");
     const lastDigitEl = document.getElementById("lastDigit");
-    const chartContainer = document.getElementById("chart");
-    const tickerTrack = document.getElementById("tickerTrack");
 
     let socket = null;
     let selectedSymbol = marketSelect.value;
@@ -265,31 +251,8 @@
     let dayHigh = null;
     let dayLow = null;
 
-    // ONLY the endpoint that worked for you
+    // The endpoint that worked in your test
     const WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
-
-    const tickerSymbols = [
-      {s:"1HZ10V",n:"V10 (1s)"},{s:"1HZ25V",n:"V25 (1s)"},{s:"1HZ50V",n:"V50 (1s)"},
-      {s:"1HZ75V",n:"V75 (1s)"},{s:"R_10",n:"V10"},{s:"R_25",n:"V25"},
-      {s:"R_50",n:"V50"},{s:"R_75",n:"V75"},{s:"R_100",n:"V100"},
-      {s:"BOOM1000",n:"Boom 1000"},{s:"CRASH1000",n:"Crash 1000"},
-      {s:"frxEURUSD",n:"EUR/USD"},{s:"frxXAUUSD",n:"Gold"},{s:"cryBTCUSD",n:"BTC"}
-    ];
-    const tickerData = {};
-
-    const chart = LightweightCharts.createChart(chartContainer, {
-      layout:{background:{type:'solid',color:'#121826'},textColor:'#6b7c93'},
-      grid:{vertLines:{color:'#1a2435'},horzLines:{color:'#1a2435'}},
-      width:chartContainer.clientWidth, height:180,
-      rightPriceScale:{borderVisible:false},
-      timeScale:{borderVisible:false,timeVisible:true,secondsVisible:true},
-      crosshair:{mode:LightweightCharts.CrosshairMode.Normal}
-    });
-    const lineSeries = chart.addSeries(LightweightCharts.LineSeries, {
-      color:'#ff5c6c', lineWidth:2, crosshairMarkerVisible:true,
-      lastValueVisible:false, priceLineVisible:false
-    });
-    window.addEventListener('resize', () => chart.applyOptions({width:chartContainer.clientWidth}));
 
     function setLive(on) {
       if (on) {
@@ -304,7 +267,7 @@
     }
 
     function getLastDigit(q) {
-      return parseInt(String(q).replace(".","").slice(-1), 10);
+      return parseInt(String(q).replace(".", "").slice(-1), 10);
     }
 
     function getSampleSize() {
@@ -323,8 +286,11 @@
       return isNaN(d) ? 5 : Math.min(9, Math.max(0, d));
     }
 
-    function formatPrice(p, decimals=2) {
-      return Number(p).toLocaleString(undefined, {minimumFractionDigits:decimals, maximumFractionDigits:decimals});
+    function formatPrice(p, decimals = 2) {
+      return Number(p).toLocaleString(undefined, {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
     }
 
     function analyze() {
@@ -333,157 +299,150 @@
       const count = sample.length;
       if (count === 0) return;
 
-      let even=0, odd=0;
-      sample.forEach(t => t.digit%2===0 ? even++ : odd++);
-      const evenPct = ((even/count)*100).toFixed(1);
-      const oddPct = ((odd/count)*100).toFixed(1);
-      document.getElementById("evenBar").style.width = evenPct+"%";
-      document.getElementById("oddBar").style.width = oddPct+"%";
-      document.getElementById("evenPct").textContent = evenPct+"%";
-      document.getElementById("oddPct").textContent = oddPct+"%";
-      document.getElementById("eoBadge").textContent = count+" ticks";
+      // Even / Odd
+      let even = 0, odd = 0;
+      sample.forEach(t => t.digit % 2 === 0 ? even++ : odd++);
+      const evenPct = ((even / count) * 100).toFixed(1);
+      const oddPct = ((odd / count) * 100).toFixed(1);
+      document.getElementById("evenBar").style.width = evenPct + "%";
+      document.getElementById("oddBar").style.width = oddPct + "%";
+      document.getElementById("evenPct").textContent = evenPct + "%";
+      document.getElementById("oddPct").textContent = oddPct + "%";
+      document.getElementById("eoBadge").textContent = count + " ticks";
 
-      const overD = getOverDigit(), underD = getUnderDigit();
-      let over=0, under=0;
+      // Over / Under
+      const overD = getOverDigit();
+      const underD = getUnderDigit();
+      let over = 0, under = 0;
       sample.forEach(t => {
         if (t.digit > overD) over++;
         if (t.digit < underD) under++;
       });
-      const overPct = ((over/count)*100).toFixed(1);
-      const underPct = ((under/count)*100).toFixed(1);
-      document.getElementById("overBar").style.width = overPct+"%";
-      document.getElementById("underBar").style.width = underPct+"%";
-      document.getElementById("overPct").textContent = overPct+"%";
-      document.getElementById("underPct").textContent = underPct+"%";
-      document.getElementById("ouBadge").textContent = count+" ticks";
+      const overPct = ((over / count) * 100).toFixed(1);
+      const underPct = ((under / count) * 100).toFixed(1);
+      document.getElementById("overBar").style.width = overPct + "%";
+      document.getElementById("underBar").style.width = underPct + "%";
+      document.getElementById("overPct").textContent = overPct + "%";
+      document.getElementById("underPct").textContent = underPct + "%";
+      document.getElementById("ouBadge").textContent = count + " ticks";
 
-      let rise=0, fall=0;
-      for (let i=1; i<sample.length; i++) {
-        if (sample[i].quote > sample[i-1].quote) rise++;
-        else if (sample[i].quote < sample[i-1].quote) fall++;
+      // Rise / Fall
+      let rise = 0, fall = 0;
+      for (let i = 1; i < sample.length; i++) {
+        if (sample[i].quote > sample[i - 1].quote) rise++;
+        else if (sample[i].quote < sample[i - 1].quote) fall++;
       }
-      const rfTotal = rise+fall;
-      const risePct = rfTotal ? ((rise/rfTotal)*100).toFixed(1) : "0.0";
-      const fallPct = rfTotal ? ((fall/rfTotal)*100).toFixed(1) : "0.0";
-      document.getElementById("riseBar").style.width = risePct+"%";
-      document.getElementById("fallBar").style.width = fallPct+"%";
-      document.getElementById("risePct").textContent = risePct+"%";
-      document.getElementById("fallPct").textContent = fallPct+"%";
-      document.getElementById("rfBadge").textContent = rfTotal+" moves";
+      const rfTotal = rise + fall;
+      const risePct = rfTotal ? ((rise / rfTotal) * 100).toFixed(1) : "0.0";
+      const fallPct = rfTotal ? ((fall / rfTotal) * 100).toFixed(1) : "0.0";
+      document.getElementById("riseBar").style.width = risePct + "%";
+      document.getElementById("fallBar").style.width = fallPct + "%";
+      document.getElementById("risePct").textContent = risePct + "%";
+      document.getElementById("fallPct").textContent = fallPct + "%";
+      document.getElementById("rfBadge").textContent = rfTotal + " moves";
 
+      // Digit frequency
       const freq = Array(10).fill(0);
       sample.forEach(t => freq[t.digit]++);
-      let maxF=-1, minF=Infinity, most=[], least=[];
-      freq.forEach((f,d) => {
-        if (f>maxF){maxF=f;most=[d];} else if(f===maxF) most.push(d);
-        if (f<minF){minF=f;least=[d];} else if(f===minF) least.push(d);
+      let maxF = -1, minF = Infinity, most = [], least = [];
+      freq.forEach((f, d) => {
+        if (f > maxF) { maxF = f; most = [d]; }
+        else if (f === maxF) most.push(d);
+        if (f < minF) { minF = f; least = [d]; }
+        else if (f === minF) least.push(d);
       });
 
-      const lastDigit = sample[sample.length-1].digit;
+      const lastDigit = sample[sample.length - 1].digit;
       lastDigitEl.textContent = lastDigit;
 
       const table = document.getElementById("digitTable");
       table.innerHTML = "";
-      const maxBar = Math.max(...freq,1);
-      for (let d=0; d<=9; d++) {
-        const pct = ((freq[d]/count)*100).toFixed(1);
-        const h = Math.max(2,(freq[d]/maxBar)*34);
+      const maxBar = Math.max(...freq, 1);
+      for (let d = 0; d <= 9; d++) {
+        const pct = ((freq[d] / count) * 100).toFixed(1);
+        const h = Math.max(2, (freq[d] / maxBar) * 34);
         const cell = document.createElement("div");
         cell.className = "digit-cell";
-        if (d===lastDigit) cell.classList.add("active");
-        if (most.includes(d) && maxF>0) cell.classList.add("most");
+        if (d === lastDigit) cell.classList.add("active");
+        if (most.includes(d) && maxF > 0) cell.classList.add("most");
         if (least.includes(d)) cell.classList.add("least");
-        cell.innerHTML = `<div class="digit-num">${d}</div><div class="digit-bar-wrap"><div class="digit-bar" style="height:${h}px"></div></div><div class="digit-pct">${pct}%</div><div class="digit-count">${freq[d]}</div>`;
+        cell.innerHTML = `
+          <div class="digit-num">${d}</div>
+          <div class="digit-bar-wrap"><div class="digit-bar" style="height:${h}px"></div></div>
+          <div class="digit-pct">${pct}%</div>
+          <div class="digit-count">${freq[d]}</div>`;
         table.appendChild(cell);
       }
 
       document.getElementById("mostDigit").textContent = most.join(", ");
       document.getElementById("leastDigit").textContent = least.join(", ");
-      document.getElementById("mostDigitFull").textContent = most.join(", ")+` (${((maxF/count)*100).toFixed(1)}%)`;
-      document.getElementById("leastDigitFull").textContent = least.join(", ")+` (${((minF/count)*100).toFixed(1)}%)`;
-      document.getElementById("mdBadge").textContent = count+" ticks";
-      document.getElementById("digitBadge").textContent = count+" ticks";
-    }
-
-    function updateTickerBelt() {
-      let html = "";
-      const list = [...tickerSymbols, ...tickerSymbols];
-      list.forEach(item => {
-        const d = tickerData[item.s];
-        let pctStr = "—", cls = "";
-        if (d && d.prev !== undefined && d.prev !== 0) {
-          const pct = ((d.price - d.prev) / d.prev * 100);
-          pctStr = (pct>=0?"+":"") + pct.toFixed(2) + "%";
-          cls = pct>=0 ? "up" : "down";
-        }
-        html += `<div class="ticker-item"><span class="name">${item.n}</span><span class="pct ${cls}">${pctStr}</span></div>`;
-      });
-      tickerTrack.innerHTML = html;
+      document.getElementById("mostDigitFull").textContent = most.join(", ") + ` (${((maxF / count) * 100).toFixed(1)}%)`;
+      document.getElementById("leastDigitFull").textContent = least.join(", ") + ` (${((minF / count) * 100).toFixed(1)}%)`;
+      document.getElementById("mdBadge").textContent = count + " ticks";
+      document.getElementById("digitBadge").textContent = count + " ticks";
     }
 
     function connect() {
-      if (socket) { try{socket.close()}catch(e){} socket=null; }
-      if (pingInterval) { clearInterval(pingInterval); pingInterval=null; }
+      if (socket) {
+        try { socket.close(); } catch (e) {}
+        socket = null;
+      }
+      if (pingInterval) {
+        clearInterval(pingInterval);
+        pingInterval = null;
+      }
 
       statusEl.textContent = "Connecting...";
       setLive(false);
 
       socket = new WebSocket(WS_URL);
 
-      socket.onopen = () => {
-        console.log("✅ Connected to public endpoint");
+      socket.onopen = function () {
+        console.log("✅ Connected");
         reconnectAttempts = 0;
         statusEl.textContent = "Connected";
         setLive(true);
         subscribeToMarket(selectedSymbol);
 
-        tickerSymbols.forEach(item => {
-          if (item.s !== selectedSymbol) {
-            socket.send(JSON.stringify({ticks:item.s, subscribe:1}));
-          }
-        });
-
-        pingInterval = setInterval(() => {
-          if (socket?.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ping:1}));
+        pingInterval = setInterval(function () {
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ ping: 1 }));
           }
         }, 25000);
       };
 
-      socket.onmessage = (event) => {
+      socket.onmessage = function (event) {
         let data;
-        try { data = JSON.parse(event.data); } catch { return; }
+        try {
+          data = JSON.parse(event.data);
+        } catch (e) {
+          return;
+        }
+
         if (data.error) {
           statusEl.textContent = data.error.message || "API Error";
           return;
         }
 
         if (data.msg_type === "tick" && data.tick) {
-          const sym = data.tick.symbol;
-          const quote = Number(data.tick.quote);
-          const epoch = data.tick.epoch;
-          const decimals = Number(data.tick.pip_size || 2);
+          if (data.tick.symbol !== selectedSymbol) return;
 
-          if (!tickerData[sym]) tickerData[sym] = {price:quote, prev:quote};
-          else {
-            tickerData[sym].prev = tickerData[sym].price;
-            tickerData[sym].price = quote;
+          if (data.subscription && data.subscription.id) {
+            subscriptionId = data.subscription.id;
           }
-          updateTickerBelt();
 
-          if (sym !== selectedSymbol) return;
-
-          if (data.subscription?.id) subscriptionId = data.subscription.id;
+          const quote = Number(data.tick.quote);
+          const decimals = Number(data.tick.pip_size || 2);
 
           mainPrice.textContent = formatPrice(quote, decimals);
 
           if (openPrice === null) openPrice = quote;
           const pct = ((quote - openPrice) / openPrice * 100);
           const isUp = pct >= 0;
-          mainPrice.className = "main-price " + (isUp?"up":"down");
-          changeRow.className = "change-row " + (isUp?"up":"down");
+          mainPrice.className = "main-price " + (isUp ? "up" : "down");
+          changeRow.className = "change-row " + (isUp ? "up" : "down");
           changeArrow.textContent = isUp ? "▲" : "▼";
-          changePct.textContent = (isUp?"+":"") + pct.toFixed(2) + "%";
+          changePct.textContent = (isUp ? "+" : "") + pct.toFixed(2) + "%";
 
           if (dayHigh === null || quote > dayHigh) dayHigh = quote;
           if (dayLow === null || quote < dayLow) dayLow = quote;
@@ -493,34 +452,32 @@
           const digit = getLastDigit(quote);
           lastDigitEl.textContent = digit;
 
-          ticks.push({quote, digit, epoch});
+          ticks.push({ quote: quote, digit: digit });
           if (ticks.length > MAX_TICKS) ticks.shift();
-
-          try {
-            lineSeries.update({time:epoch, value:quote});
-            chart.timeScale().scrollToRealTime();
-          } catch(e){}
 
           analyze();
         }
       };
 
-      socket.onerror = () => {
-        statusEl.textContent = "Connection error";
+      socket.onerror = function () {
+        statusEl.textContent = "Error";
         setLive(false);
       };
 
-      socket.onclose = () => {
+      socket.onclose = function () {
         setLive(false);
-        statusEl.textContent = "Disconnected — reconnecting...";
-        if (pingInterval) { clearInterval(pingInterval); pingInterval=null; }
+        statusEl.textContent = "Reconnecting...";
+        if (pingInterval) {
+          clearInterval(pingInterval);
+          pingInterval = null;
+        }
 
         if (reconnectAttempts < 12) {
-          const delay = Math.min(1000 * Math.pow(1.6, reconnectAttempts), 10000);
+          const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 8000);
           reconnectAttempts++;
           setTimeout(connect, delay);
         } else {
-          statusEl.textContent = "Failed. Please refresh.";
+          statusEl.textContent = "Failed. Refresh page.";
         }
       };
     }
@@ -531,7 +488,6 @@
       openPrice = null;
       dayHigh = null;
       dayLow = null;
-      try { lineSeries.setData([]); } catch(e){}
       lastDigitEl.textContent = "—";
       mainPrice.textContent = "—";
       changePct.textContent = "0.00%";
@@ -541,21 +497,26 @@
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
 
       if (subscriptionId) {
-        socket.send(JSON.stringify({forget: subscriptionId}));
+        socket.send(JSON.stringify({ forget: subscriptionId }));
         subscriptionId = null;
       }
 
-      statusEl.textContent = "Loading " + symbol + "...";
-      socket.send(JSON.stringify({ticks: symbol, subscribe: 1}));
+      statusEl.textContent = "Loading...";
+      socket.send(JSON.stringify({
+        ticks: symbol,
+        subscribe: 1
+      }));
     }
 
-    marketSelect.addEventListener("change", () => subscribeToMarket(marketSelect.value));
+    marketSelect.addEventListener("change", function () {
+      subscribeToMarket(marketSelect.value);
+    });
     sampleSizeInput.addEventListener("input", analyze);
     overDigitInput.addEventListener("input", analyze);
     underDigitInput.addEventListener("input", analyze);
 
+    // Start
     connect();
-    updateTickerBelt();
   </script>
 </body>
 </html>
