@@ -30,35 +30,14 @@
     .stat-label{font-size:10px;color:#6b7c93;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px}
     .stat-value{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
 
-    /* Live Price Feed */
-    .ticker-belt{
-      background:#0c111b;
-      border-top:1px solid #1e2a3d;
-      overflow:hidden;
-      white-space:nowrap;
-      padding:12px 0;
-    }
-    .ticker-track{
-      display:inline-block;
-      white-space:nowrap;
-      animation: scroll 30s linear infinite;
-    }
-    .ticker-item{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      font-size:13px;
-      color:#9aabc0;
-      margin-right:36px;
-    }
+    .ticker-belt{background:#0c111b;border-top:1px solid #1e2a3d;overflow:hidden;padding:12px 0}
+    .ticker-track{display:inline-block;white-space:nowrap;animation:scroll 28s linear infinite}
+    .ticker-item{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:#9aabc0;margin-right:32px}
     .ticker-item .name{font-weight:600;color:#c5d0e0}
-    .ticker-item .price{font-variant-numeric:tabular-nums;color:#e8edf5}
+    .ticker-item .price{color:#e8edf5;font-variant-numeric:tabular-nums}
     .ticker-item .pct.up{color:#2ee59d}
     .ticker-item .pct.down{color:#ff5c6c}
-    @keyframes scroll{
-      0%{transform:translateX(0)}
-      100%{transform:translateX(-50%)}
-    }
+    @keyframes scroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
 
     .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
     @media(max-width:540px){.controls{grid-template-columns:1fr}}
@@ -169,7 +148,6 @@
         </div>
       </div>
 
-      <!-- Live scrolling price feed -->
       <div class="ticker-belt">
         <div class="ticker-track" id="tickerTrack"></div>
       </div>
@@ -253,7 +231,7 @@
       </div>
     </div>
 
-    <p class="note">% change is calculated from ~24h ago. Analysis uses last N ticks. Read-only.</p>
+    <p class="note">% change uses a reference price from earlier in the day (24h style). Analysis uses last N ticks.</p>
   </div>
 
   <script>
@@ -281,14 +259,13 @@
     let ticks = [];
     const MAX_TICKS = 1000;
 
-    // For 24h-style change
-    let refPrice = null;   // price from ~24h ago
+    // Reference price for % change (from history)
+    let refPrice = null;
     let dayHigh = null;
     let dayLow = null;
 
     const WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
 
-    // Fewer symbols so the feed is more reliable
     const feedSymbols = [
       {s:"1HZ10V", n:"V10 1s"},
       {s:"1HZ25V", n:"V25 1s"},
@@ -298,8 +275,8 @@
       {s:"R_50", n:"V50"},
       {s:"R_75", n:"V75"},
       {s:"R_100", n:"V100"},
-      {s:"BOOM1000", n:"Boom1000"},
-      {s:"CRASH1000", n:"Crash1000"},
+      {s:"BOOM1000", n:"Boom"},
+      {s:"CRASH1000", n:"Crash"},
       {s:"frxEURUSD", n:"EURUSD"},
       {s:"cryBTCUSD", n:"BTC"}
     ];
@@ -346,13 +323,12 @@
 
     function updateFeed() {
       let html = "";
-      const list = [...feedSymbols, ...feedSymbols]; // duplicate for seamless loop
+      const list = [...feedSymbols, ...feedSymbols];
       list.forEach(item => {
         const d = feedData[item.s];
         let priceStr = "—";
         let pctStr = "";
         let cls = "";
-
         if (d && d.price) {
           priceStr = formatPrice(d.price, 2);
           if (d.prev && d.prev !== 0) {
@@ -361,7 +337,6 @@
             cls = pct >= 0 ? "up" : "down";
           }
         }
-
         html += `<span class="ticker-item"><span class="name">${item.n}</span> <span class="price">${priceStr}</span> <span class="pct ${cls}">${pctStr}</span></span>`;
       });
       tickerTrack.innerHTML = html;
@@ -452,18 +427,6 @@
       document.getElementById("digitBadge").textContent = count + " ticks";
     }
 
-    function requestHistory(symbol) {
-      // Ask for a good amount of recent ticks to approximate 24h reference
-      socket.send(JSON.stringify({
-        ticks_history: symbol,
-        adjust_start_time: 1,
-        count: 5000,
-        end: "latest",
-        start: 1,
-        style: "ticks"
-      }));
-    }
-
     function connect() {
       if (socket) {
         try { socket.close(); } catch (e) {}
@@ -485,15 +448,29 @@
         statusEl.textContent = "Connected";
         setLive(true);
 
-        // Main market
+        // Subscribe main market
         subscribeToMarket(selectedSymbol);
 
-        // Feed symbols
+        // Subscribe feed
         feedSymbols.forEach(item => {
           if (item.s !== selectedSymbol) {
             socket.send(JSON.stringify({ ticks: item.s, subscribe: 1 }));
           }
         });
+
+        // Request history for reference price (24h style)
+        setTimeout(() => {
+          if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({
+              ticks_history: selectedSymbol,
+              adjust_start_time: 1,
+              count: 5000,
+              end: "latest",
+              start: 1,
+              style: "ticks"
+            }));
+          }
+        }, 800);
 
         pingInterval = setInterval(function () {
           if (socket && socket.readyState === WebSocket.OPEN) {
@@ -515,15 +492,16 @@
           return;
         }
 
-        // History response → use first price as 24h reference
-        if (data.msg_type === "history" && data.history && data.echo_req && data.echo_req.ticks_history === selectedSymbol) {
-          const prices = data.history.prices;
-          if (prices && prices.length > 0) {
-            refPrice = Number(prices[0]);           // oldest in the returned window
-            dayHigh = Math.max(...prices.map(Number));
-            dayLow  = Math.min(...prices.map(Number));
+        // History → set reference price for % change
+        if (data.msg_type === "history" && data.history && data.history.prices) {
+          const prices = data.history.prices.map(Number);
+          if (prices.length > 10) {
+            refPrice = prices[0];                 // oldest price in the window
+            dayHigh = Math.max(...prices);
+            dayLow = Math.min(...prices);
             high24.textContent = formatPrice(dayHigh);
-            low24.textContent  = formatPrice(dayLow);
+            low24.textContent = formatPrice(dayLow);
+            console.log("Reference price set:", refPrice);
           }
           return;
         }
@@ -533,7 +511,7 @@
           const quote = Number(data.tick.quote);
           const decimals = Number(data.tick.pip_size || 2);
 
-          // Update feed
+          // Feed update
           if (!feedData[sym]) {
             feedData[sym] = { price: quote, prev: quote };
           } else {
@@ -550,17 +528,20 @@
 
           mainPrice.textContent = formatPrice(quote, decimals);
 
-          // 24h-style % change
-          if (refPrice && refPrice !== 0) {
+          // Calculate % using reference price (24h style)
+          if (refPrice && refPrice > 0) {
             const pct = ((quote - refPrice) / refPrice) * 100;
             const isUp = pct >= 0;
             mainPrice.className = "main-price " + (isUp ? "up" : "down");
             changeRow.className = "change-row " + (isUp ? "up" : "down");
             changeArrow.textContent = isUp ? "▲" : "▼";
             changePct.textContent = (isUp ? "+" : "") + pct.toFixed(2) + "%";
+          } else {
+            // Fallback while waiting for history
+            changePct.textContent = "—";
           }
 
-          // Update high / low live
+          // Live high/low
           if (dayHigh === null || quote > dayHigh) dayHigh = quote;
           if (dayLow === null || quote < dayLow) dayLow = quote;
           high24.textContent = formatPrice(dayHigh, decimals);
@@ -618,4 +599,32 @@
       }
 
       statusEl.textContent = "Loading...";
-      socket.send(JSON.stringify({ ticks: symbol,
+      socket.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+
+      // Request history again for new market
+      setTimeout(() => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({
+            ticks_history: symbol,
+            adjust_start_time: 1,
+            count: 5000,
+            end: "latest",
+            start: 1,
+            style: "ticks"
+          }));
+        }
+      }, 600);
+    }
+
+    marketSelect.addEventListener("change", function () {
+      subscribeToMarket(marketSelect.value);
+    });
+    sampleSizeInput.addEventListener("input", analyze);
+    overDigitInput.addEventListener("input", analyze);
+    underDigitInput.addEventListener("input", analyze);
+
+    connect();
+    updateFeed();
+  </script>
+</body>
+</html>
