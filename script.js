@@ -8,37 +8,37 @@ const statusDot = document.getElementById("statusDot");
 const updatedElement = document.getElementById("updated");
 
 let selectedSymbol = marketSelect.value;
-let timer = null;
-let currentPrice = 1000;
+let currentPrice = 0;
+let priceTimer = null;
 
-const marketSettings = {
-  "1HZ10V":  { price: 1000, decimals: 2 },
-  "1HZ15V":  { price: 1500, decimals: 2 },
-  "1HZ25V":  { price: 2500, decimals: 2 },
-  "1HZ30V":  { price: 3000, decimals: 2 },
-  "1HZ50V":  { price: 5000, decimals: 2 },
-  "1HZ75V":  { price: 7500, decimals: 2 },
-  "1HZ90V":  { price: 9000, decimals: 2 },
-  "1HZ100V": { price: 10000, decimals: 2 },
-  "R_10":    { price: 1000, decimals: 3 },
-  "R_25":    { price: 2500, decimals: 3 },
-  "R_50":    { price: 5000, decimals: 3 },
-  "R_75":    { price: 7500, decimals: 3 },
-  "R_100":   { price: 10000, decimals: 2 },
-  "BOOM1000": { price: 1000, decimals: 2 },
-  "BOOM500":  { price: 500, decimals: 2 },
-  "CRASH1000": { price: 1000, decimals: 2 },
-  "CRASH500":  { price: 500, decimals: 2 },
-  "stpRNG": { price: 1000, decimals: 2 },
-  "frxEURUSD": { price: 1.08, decimals: 5 },
-  "frxGBPUSD": { price: 1.27, decimals: 5 },
-  "frxUSDJPY": { price: 150, decimals: 3 },
-  "cryBTCUSD": { price: 60000, decimals: 2 },
-  "cryETHUSD": { price: 3000, decimals: 2 },
-  "frxXAUUSD": { price: 2700, decimals: 2 }
+const settings = {
+  "1HZ10V": { start: 1000, decimals: 2 },
+  "1HZ15V": { start: 1500, decimals: 2 },
+  "1HZ25V": { start: 2500, decimals: 2 },
+  "1HZ30V": { start: 3000, decimals: 2 },
+  "1HZ50V": { start: 5000, decimals: 2 },
+  "1HZ75V": { start: 7500, decimals: 2 },
+  "1HZ90V": { start: 9000, decimals: 2 },
+  "1HZ100V": { start: 10000, decimals: 2 },
+  "R_10": { start: 1000, decimals: 3 },
+  "R_25": { start: 2500, decimals: 3 },
+  "R_50": { start: 5000, decimals: 4 },
+  "R_75": { start: 7500, decimals: 4 },
+  "R_100": { start: 10000, decimals: 2 },
+  "BOOM1000": { start: 1000, decimals: 2 },
+  "BOOM500": { start: 500, decimals: 2 },
+  "CRASH1000": { start: 1000, decimals: 2 },
+  "CRASH500": { start: 500, decimals: 2 },
+  "stpRNG": { start: 1000, decimals: 2 },
+  "frxEURUSD": { start: 1.08, decimals: 5 },
+  "frxGBPUSD": { start: 1.27, decimals: 5 },
+  "frxUSDJPY": { start: 150, decimals: 3 },
+  "cryBTCUSD": { start: 60000, decimals: 2 },
+  "cryETHUSD": { start: 3000, decimals: 2 },
+  "frxXAUUSD": { start: 2700, decimals: 2 }
 };
 
-function setStatus(message, state = "connecting") {
+function setStatus(message, state) {
   statusElement.textContent = message;
   statusDot.className = "dot";
 
@@ -50,42 +50,37 @@ function setStatus(message, state = "connecting") {
 }
 
 function updatePrice() {
-  const settings = marketSettings[selectedSymbol];
+  const market = settings[selectedSymbol];
 
-  if (!settings) {
+  if (!market) {
     priceElement.textContent = "Unavailable";
-    setStatus("No sample data configured", "error");
+    setStatus("No preview data configured", "error");
     return;
   }
 
-  // SIMULATION ONLY — these are not real market prices.
-  const movement = (Math.random() - 0.5) * settings.price * 0.0002;
+  // Random movement for interface testing only.
+  const movement = (Math.random() - 0.5) * market.start * 0.0002;
   currentPrice = Math.max(0.00001, currentPrice + movement);
 
-  priceElement.textContent = currentPrice.toFixed(settings.decimals);
+  priceElement.textContent = currentPrice.toFixed(market.decimals);
   updatedElement.textContent = new Date().toLocaleTimeString();
 
-  setStatus("Sample data — not live", "error");
+  setStatus("Sample data — not connected to Deriv", "error");
 }
 
 function selectMarket() {
   const option = marketSelect.options[marketSelect.selectedIndex];
-
   selectedSymbol = marketSelect.value;
+
   marketName.textContent = option.textContent;
   symbolElement.textContent = selectedSymbol;
 
-  const settings = marketSettings[selectedSymbol];
-  currentPrice = settings ? settings.price : 1000;
+  const market = settings[selectedSymbol];
+  currentPrice = market ? market.start : 1000;
 
-  clearInterval(timer);
-
-  priceElement.textContent = "Loading sample...";
-  updatedElement.textContent = "—";
-  setStatus("Preparing sample data...");
-
+  clearInterval(priceTimer);
   updatePrice();
-  timer = setInterval(updatePrice, 1000);
+  priceTimer = setInterval(updatePrice, 1000);
 }
 
 marketSelect.addEventListener("change", selectMarket);
