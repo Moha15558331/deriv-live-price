@@ -4,117 +4,400 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Deriv Market Analyzer</title>
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
   <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{min-height:100vh;background:#0b1220;color:#f4f7fb;font-family:'Segoe UI',Arial,sans-serif;padding:20px 16px 40px}
-    .container{max-width:900px;margin:0 auto}
-    .brand{color:#36d6a5;font-size:12px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;margin-bottom:6px}
-    h1{font-size:26px;font-weight:700;margin-bottom:4px}
-    .subtitle{color:#8fa3bc;font-size:13px;margin-bottom:22px}
-    .controls{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
-    @media(max-width:540px){.controls{grid-template-columns:1fr}}
-    .control-box{background:#0f1a2c;border:1px solid #2a3c55;border-radius:12px;padding:14px}
-    .control-box label{display:block;margin-bottom:7px;font-size:11px;color:#8fa3bc;text-transform:uppercase;letter-spacing:.5px}
-    select,input{width:100%;padding:11px 12px;border:1px solid #34465f;border-radius:9px;outline:none;background:#0b1424;color:white;font-size:14px}
-    .digit-inputs{display:flex;gap:10px}
-    .digit-inputs>div{flex:1}
-    .market-card{margin-top:8px;padding:20px;border:1px solid #2b3c52;border-radius:16px;background:#0b1424}
-    .market-name{color:#c3d0e0;font-size:15px;font-weight:bold}
-    .symbol{margin-top:4px;color:#8499b4;font-size:13px}
-    .price-label{margin-top:18px;color:#91a4bc;font-size:13px}
-    .price{margin-top:6px;font-size:clamp(32px,8vw,42px);font-weight:bold;font-variant-numeric:tabular-nums;line-height:1.1}
-    .status-row{display:flex;align-items:center;gap:9px;margin-top:16px;color:#c1cddd;font-size:13px}
-    .dot{width:9px;height:9px;border-radius:50%;background:#f5b942;flex-shrink:0}
-    .dot.connected{background:#36d6a5;box-shadow:0 0 8px #36d6a580}
-    .dot.error{background:#ff6878}
-    .updated{margin-top:10px;color:#8193ab;font-size:12px}
-    .last-digit-box{text-align:center;background:#132033;border:1px solid #2a3c55;border-radius:12px;padding:10px 16px;min-width:70px}
-    .last-digit-label{font-size:10px;color:#8fa3bc;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
-    .last-digit{font-size:32px;font-weight:700;color:#36d6a5;line-height:1}
-    .analysis-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
-    @media(max-width:600px){.analysis-grid{grid-template-columns:1fr}}
-    .card{background:#0f1a2c;border:1px solid #2a3c55;border-radius:14px;padding:16px}
-    .card.full{grid-column:1/-1}
-    .card-title{font-size:12px;font-weight:700;color:#36d6a5;letter-spacing:.8px;text-transform:uppercase;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between}
-    .card-title .badge{background:#1a2d45;color:#8fa3bc;font-size:11px;padding:3px 8px;border-radius:20px;letter-spacing:0;text-transform:none;font-weight:500}
-    .bar-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-    .bar-label{width:48px;font-size:13px;color:#b8c6d9;flex-shrink:0}
-    .bar-track{flex:1;height:16px;background:#1a2738;border-radius:5px;overflow:hidden}
-    .bar-fill{height:100%;border-radius:5px;transition:width .25s ease}
-    .bar-fill.even{background:linear-gradient(90deg,#36d6a5,#2bb88c)}
-    .bar-fill.odd{background:linear-gradient(90deg,#5b8def,#4a7ad9)}
-    .bar-fill.over{background:linear-gradient(90deg,#36d6a5,#2bb88c)}
-    .bar-fill.under{background:linear-gradient(90deg,#ff6878,#e55566)}
-    .bar-fill.rise{background:linear-gradient(90deg,#36d6a5,#2bb88c)}
-    .bar-fill.fall{background:linear-gradient(90deg,#ff6878,#e55566)}
-    .bar-pct{width:48px;text-align:right;font-size:13px;font-weight:600;color:#e2eaf3;flex-shrink:0;font-variant-numeric:tabular-nums}
-    .digit-table{display:grid;grid-template-columns:repeat(10,1fr);gap:6px}
-    .digit-cell{background:#132033;border:1px solid #2a3c55;border-radius:10px;padding:8px 2px 6px;text-align:center;transition:all .2s ease}
-    .digit-cell.active{border-color:#36d6a5;background:#163528;box-shadow:0 0 12px #36d6a540}
-    .digit-cell.most{border-color:#5b8def;background:#1a2740}
-    .digit-cell.least{border-color:#f5b942;background:#2a2410}
-    .digit-num{font-size:16px;font-weight:700;color:#e2eaf3;line-height:1;margin-bottom:5px}
-    .digit-cell.active .digit-num{color:#36d6a5}
-    .digit-cell.most .digit-num{color:#5b8def}
-    .digit-cell.least .digit-num{color:#f5b942}
-    .digit-bar-wrap{height:36px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:4px}
-    .digit-bar{width:55%;max-width:16px;background:linear-gradient(180deg,#36d6a5,#1a9e74);border-radius:3px 3px 0 0;transition:height .25s ease;min-height:2px}
-    .digit-cell.most .digit-bar{background:linear-gradient(180deg,#5b8def,#3a6bc7)}
-    .digit-cell.least .digit-bar{background:linear-gradient(180deg,#f5b942,#c9941e)}
-    .digit-pct{font-size:10px;color:#8fa3bc;font-variant-numeric:tabular-nums}
-    .digit-count{font-size:9px;color:#6b7f99;margin-top:1px}
-    .stats-summary{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
-    .stat-pill{background:#132033;border:1px solid #2a3c55;border-radius:20px;padding:5px 11px;font-size:12px;color:#b8c6d9}
-    .stat-pill strong{color:#e2eaf3}
-    .stat-pill.most strong{color:#5b8def}
-    .stat-pill.least strong{color:#f5b942}
-    .note{margin-top:18px;color:#8193ab;font-size:12px;line-height:1.6}
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      min-height: 100vh;
+      background: #0a0e17;
+      color: #e8edf5;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      padding: 16px;
+    }
+    .container { max-width: 980px; margin: 0 auto; }
+
+    /* ===== MARKET OVERVIEW PANEL ===== */
+    .overview-panel {
+      background: #121826;
+      border: 1px solid #1e2a3d;
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 20px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.35);
+    }
+
+    .overview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 18px;
+      border-bottom: 1px solid #1e2a3d;
+      background: #0f1520;
+    }
+
+    .market-select-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .market-select-wrap select {
+      appearance: none;
+      background: transparent;
+      border: none;
+      color: #c5d0e0;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.6px;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding-right: 18px;
+      outline: none;
+    }
+
+    .market-select-wrap::after {
+      content: "▾";
+      position: absolute;
+      right: 0;
+      color: #7a8ba3;
+      font-size: 11px;
+      pointer-events: none;
+    }
+
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #7a8ba3;
+    }
+    .live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #ff5c6c;
+    }
+    .live-dot.on {
+      background: #2ee59d;
+      box-shadow: 0 0 8px #2ee59d80;
+    }
+
+    .price-section {
+      padding: 20px 20px 8px;
+    }
+
+    .main-price {
+      font-size: clamp(28px, 7vw, 38px);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.5px;
+    }
+    .main-price.up { color: #2ee59d; }
+    .main-price.down { color: #ff5c6c; }
+
+    .change-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 6px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .change-row.up { color: #2ee59d; }
+    .change-row.down { color: #ff5c6c; }
+
+    .chart-area {
+      height: 180px;
+      margin: 0 8px;
+    }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      border-top: 1px solid #1e2a3d;
+      margin-top: 8px;
+    }
+    .stat-box {
+      padding: 14px 16px;
+      text-align: center;
+      border-right: 1px solid #1e2a3d;
+    }
+    .stat-box:last-child { border-right: none; }
+    .stat-label {
+      font-size: 10px;
+      color: #6b7c93;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    .stat-value {
+      font-size: 14px;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Ticker belt */
+    .ticker-belt {
+      background: #0c111b;
+      border-top: 1px solid #1e2a3d;
+      overflow: hidden;
+      white-space: nowrap;
+      padding: 10px 0;
+      position: relative;
+    }
+    .ticker-track {
+      display: inline-flex;
+      gap: 28px;
+      animation: scroll 45s linear infinite;
+      padding-left: 100%;
+    }
+    .ticker-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #9aabc0;
+    }
+    .ticker-item .name { font-weight: 600; color: #c5d0e0; }
+    .ticker-item .pct.up { color: #2ee59d; }
+    .ticker-item .pct.down { color: #ff5c6c; }
+
+    @keyframes scroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* ===== CONTROLS + ANALYSIS ===== */
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 540px) { .controls { grid-template-columns: 1fr; } }
+
+    .control-box {
+      background: #121826;
+      border: 1px solid #1e2a3d;
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .control-box label {
+      display: block;
+      margin-bottom: 7px;
+      font-size: 11px;
+      color: #7a8ba3;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    select, input {
+      width: 100%;
+      padding: 11px 12px;
+      border: 1px solid #2a3a50;
+      border-radius: 9px;
+      outline: none;
+      background: #0c111b;
+      color: white;
+      font-size: 14px;
+    }
+    .digit-inputs { display: flex; gap: 10px; }
+    .digit-inputs > div { flex: 1; }
+
+    .last-digit-box {
+      text-align: center;
+      background: #0c111b;
+      border: 1px solid #2a3a50;
+      border-radius: 12px;
+      padding: 10px 16px;
+      min-width: 70px;
+    }
+    .last-digit-label { font-size: 10px; color: #7a8ba3; text-transform: uppercase; margin-bottom: 4px; }
+    .last-digit { font-size: 30px; font-weight: 700; color: #2ee59d; line-height: 1; }
+
+    .analysis-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 14px;
+    }
+    @media (max-width: 600px) { .analysis-grid { grid-template-columns: 1fr; } }
+
+    .card {
+      background: #121826;
+      border: 1px solid #1e2a3d;
+      border-radius: 14px;
+      padding: 16px;
+    }
+    .card.full { grid-column: 1 / -1; }
+    .card-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: #2ee59d;
+      letter-spacing: 0.7px;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .card-title .badge {
+      background: #1a2435;
+      color: #7a8ba3;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .bar-label { width: 48px; font-size: 13px; color: #a0b0c5; flex-shrink: 0; }
+    .bar-track { flex: 1; height: 15px; background: #1a2435; border-radius: 5px; overflow: hidden; }
+    .bar-fill { height: 100%; border-radius: 5px; transition: width 0.25s ease; }
+    .bar-fill.even  { background: linear-gradient(90deg, #2ee59d, #1fbf80); }
+    .bar-fill.odd   { background: linear-gradient(90deg, #5b8def, #4470d4); }
+    .bar-fill.over  { background: linear-gradient(90deg, #2ee59d, #1fbf80); }
+    .bar-fill.under { background: linear-gradient(90deg, #ff5c6c, #e04555); }
+    .bar-fill.rise  { background: linear-gradient(90deg, #2ee59d, #1fbf80); }
+    .bar-fill.fall  { background: linear-gradient(90deg, #ff5c6c, #e04555); }
+    .bar-pct { width: 48px; text-align: right; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+    .digit-table { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; }
+    .digit-cell {
+      background: #0c111b;
+      border: 1px solid #1e2a3d;
+      border-radius: 10px;
+      padding: 8px 2px 6px;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .digit-cell.active { border-color: #2ee59d; background: #0f2a22; box-shadow: 0 0 12px #2ee59d40; }
+    .digit-cell.most   { border-color: #5b8def; background: #152036; }
+    .digit-cell.least  { border-color: #f5b942; background: #2a2410; }
+    .digit-num { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .digit-cell.active .digit-num { color: #2ee59d; }
+    .digit-cell.most .digit-num { color: #5b8def; }
+    .digit-cell.least .digit-num { color: #f5b942; }
+    .digit-bar-wrap { height: 34px; display: flex; align-items: flex-end; justify-content: center; margin-bottom: 3px; }
+    .digit-bar { width: 55%; max-width: 15px; background: linear-gradient(180deg, #2ee59d, #1a9e74); border-radius: 3px 3px 0 0; min-height: 2px; transition: height 0.25s; }
+    .digit-cell.most .digit-bar { background: linear-gradient(180deg, #5b8def, #3a6bc7); }
+    .digit-cell.least .digit-bar { background: linear-gradient(180deg, #f5b942, #c9941e); }
+    .digit-pct { font-size: 10px; color: #7a8ba3; }
+    .digit-count { font-size: 9px; color: #5a6b82; margin-top: 1px; }
+
+    .stats-summary { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    .stat-pill {
+      background: #0c111b;
+      border: 1px solid #1e2a3d;
+      border-radius: 20px;
+      padding: 5px 11px;
+      font-size: 12px;
+      color: #9aabc0;
+    }
+    .stat-pill strong { color: #e8edf5; }
+    .stat-pill.most strong { color: #5b8def; }
+    .stat-pill.least strong { color: #f5b942; }
+
+    .note { margin-top: 16px; color: #5a6b82; font-size: 12px; line-height: 1.5; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="brand">Deriv Market Analyzer</div>
-    <h1>Digit & Rise/Fall</h1>
-    <p class="subtitle">Live tick analysis — Even/Odd • Over/Under • Rise/Fall • Match/Differ</p>
 
-    <div class="controls">
-      <div class="control-box">
-        <label for="marketSelect">Market</label>
-        <select id="marketSelect">
-          <option value="1HZ25V">Volatility 25 (1s) Index</option>
-          <option value="1HZ10V">Volatility 10 (1s) Index</option>
-          <option value="1HZ15V">Volatility 15 (1s) Index</option>
-          <option value="1HZ30V">Volatility 30 (1s) Index</option>
-          <option value="1HZ50V">Volatility 50 (1s) Index</option>
-          <option value="1HZ75V">Volatility 75 (1s) Index</option>
-          <option value="1HZ90V">Volatility 90 (1s) Index</option>
-          <option value="R_10">Volatility 10 Index</option>
-          <option value="R_25">Volatility 25 Index</option>
-          <option value="R_50">Volatility 50 Index</option>
-          <option value="R_75">Volatility 75 Index</option>
-          <option value="R_100">Volatility 100 Index</option>
-          <option value="BOOM1000">Boom 1000 Index</option>
-          <option value="BOOM500">Boom 500 Index</option>
-          <option value="CRASH1000">Crash 1000 Index</option>
-          <option value="CRASH500">Crash 500 Index</option>
-          <option value="stpRNG">Step Index</option>
-          <option value="frxEURUSD">EUR/USD</option>
-          <option value="frxGBPUSD">GBP/USD</option>
-          <option value="frxUSDJPY">USD/JPY</option>
-          <option value="cryBTCUSD">BTC/USD</option>
-          <option value="cryETHUSD">ETH/USD</option>
-          <option value="frxXAUUSD">Gold/USD</option>
-        </select>
+    <!-- ========== MARKET OVERVIEW PANEL ========== -->
+    <div class="overview-panel">
+      <div class="overview-header">
+        <div class="market-select-wrap">
+          <select id="marketSelect">
+            <option value="1HZ25V">Volatility 25 (1s) Index</option>
+            <option value="1HZ10V">Volatility 10 (1s) Index</option>
+            <option value="1HZ15V">Volatility 15 (1s) Index</option>
+            <option value="1HZ30V">Volatility 30 (1s) Index</option>
+            <option value="1HZ50V">Volatility 50 (1s) Index</option>
+            <option value="1HZ75V">Volatility 75 (1s) Index</option>
+            <option value="1HZ90V">Volatility 90 (1s) Index</option>
+            <option value="R_10">Volatility 10 Index</option>
+            <option value="R_25">Volatility 25 Index</option>
+            <option value="R_50">Volatility 50 Index</option>
+            <option value="R_75">Volatility 75 Index</option>
+            <option value="R_100">Volatility 100 Index</option>
+            <option value="BOOM1000">Boom 1000 Index</option>
+            <option value="BOOM500">Boom 500 Index</option>
+            <option value="CRASH1000">Crash 1000 Index</option>
+            <option value="CRASH500">Crash 500 Index</option>
+            <option value="stpRNG">Step Index</option>
+            <option value="frxEURUSD">EUR/USD</option>
+            <option value="frxGBPUSD">GBP/USD</option>
+            <option value="frxUSDJPY">USD/JPY</option>
+            <option value="cryBTCUSD">BTC/USD</option>
+            <option value="cryETHUSD">ETH/USD</option>
+            <option value="frxXAUUSD">Gold/USD</option>
+          </select>
+        </div>
+        <div class="live-badge">
+          <span class="live-dot" id="liveDot"></span>
+          <span id="liveText">OFFLINE</span>
+        </div>
       </div>
+
+      <div class="price-section">
+        <div class="main-price" id="mainPrice">—</div>
+        <div class="change-row" id="changeRow">
+          <span id="changeArrow">—</span>
+          <span id="changePct">0.00%</span>
+        </div>
+      </div>
+
+      <div class="chart-area" id="chart"></div>
+
+      <div class="stats-row">
+        <div class="stat-box">
+          <div class="stat-label">24H High</div>
+          <div class="stat-value" id="high24">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">24H Low</div>
+          <div class="stat-value" id="low24">—</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">Execution</div>
+          <div class="stat-value" id="execution">&lt; 1 ms</div>
+        </div>
+      </div>
+
+      <!-- Ticker belt -->
+      <div class="ticker-belt">
+        <div class="ticker-track" id="tickerTrack">
+          <!-- filled by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== CONTROLS ========== -->
+    <div class="controls">
       <div class="control-box">
         <label for="sampleSize">Ticks to analyze (1–1000)</label>
         <input type="text" id="sampleSize" value="100" inputmode="numeric">
+      </div>
+      <div class="control-box">
+        <label>Last digit</label>
+        <div style="display:flex;align-items:center;gap:14px;">
+          <div class="last-digit-box">
+            <div class="last-digit-label">Last</div>
+            <div class="last-digit" id="lastDigit">—</div>
+          </div>
+          <div style="font-size:12px;color:#7a8ba3;line-height:1.4">Highlights on<br>digit table</div>
+        </div>
       </div>
     </div>
 
     <div class="controls">
       <div class="control-box">
-        <label>Over / Under boundary digits</label>
+        <label>Over / Under boundary</label>
         <div class="digit-inputs">
           <div>
             <label for="overDigit" style="font-size:10px;margin-bottom:4px">Over (digit &gt;)</label>
@@ -127,32 +410,12 @@
         </div>
       </div>
       <div class="control-box">
-        <label>Last digit</label>
-        <div style="display:flex;align-items:center;gap:14px;margin-top:2px">
-          <div class="last-digit-box">
-            <div class="last-digit-label">Last</div>
-            <div class="last-digit" id="lastDigit">—</div>
-          </div>
-          <div style="font-size:12px;color:#8fa3bc;line-height:1.5">Highlights on the<br>digit table below</div>
-        </div>
+        <label>Status</label>
+        <div style="font-size:13px;color:#9aabc0;padding-top:6px" id="status">Connecting...</div>
       </div>
     </div>
 
-    <section class="market-card">
-      <div class="market-name" id="marketName">Volatility 25 (1s) Index</div>
-      <div class="symbol">Symbol: <span id="symbol">1HZ25V</span></div>
-      <div class="price-label">Current price</div>
-      <div class="price" id="price">Waiting...</div>
-      <div class="status-row">
-        <span class="dot" id="statusDot"></span>
-        <span id="status">Connecting to market...</span>
-      </div>
-      <div class="updated">
-        Last update: <span id="updated">—</span>
-        &nbsp;•&nbsp; Analyzing last: <span id="sampleCount">0</span> ticks
-      </div>
-    </section>
-
+    <!-- ========== ANALYSIS ========== -->
     <div class="analysis-grid">
       <div class="card">
         <div class="card-title">Even / Odd <span class="badge" id="eoBadge">0 ticks</span></div>
@@ -178,9 +441,9 @@
           <div class="stat-pill most">Most: <strong id="mostDigit">—</strong></div>
           <div class="stat-pill least">Least: <strong id="leastDigit">—</strong></div>
         </div>
-        <div style="margin-top:12px;font-size:12px;color:#8fa3bc;line-height:1.5">
-          <strong style="color:#5b8def">Most</strong> = best Match candidate<br>
-          <strong style="color:#f5b942">Least</strong> = best Differ candidate
+        <div style="margin-top:12px;font-size:12px;color:#7a8ba3;line-height:1.5">
+          <strong style="color:#5b8def">Most</strong> = best Match<br>
+          <strong style="color:#f5b942">Least</strong> = best Differ
         </div>
       </div>
 
@@ -188,29 +451,36 @@
         <div class="card-title">Digit Frequency (0–9) <span class="badge" id="digitBadge">0 ticks</span></div>
         <div class="digit-table" id="digitTable"></div>
         <div class="stats-summary">
-          <div class="stat-pill most">Most occurring: <strong id="mostDigitFull">—</strong></div>
-          <div class="stat-pill least">Least occurring: <strong id="leastDigitFull">—</strong></div>
+          <div class="stat-pill most">Most: <strong id="mostDigitFull">—</strong></div>
+          <div class="stat-pill least">Least: <strong id="leastDigitFull">—</strong></div>
         </div>
       </div>
     </div>
 
-    <p class="note">Read-only market data. Always shows statistics of the last N ticks you selected. Keeps updating live as new ticks arrive.</p>
+    <p class="note">Read-only market data. Analysis always uses the last N ticks you set. This tool does not place trades.</p>
   </div>
 
   <script>
+    // ========== DOM ==========
     const marketSelect = document.getElementById("marketSelect");
-    const marketName = document.getElementById("marketName");
-    const symbolElement = document.getElementById("symbol");
-    const priceElement = document.getElementById("price");
-    const statusElement = document.getElementById("status");
-    const statusDot = document.getElementById("statusDot");
-    const updatedElement = document.getElementById("updated");
-    const sampleCountEl = document.getElementById("sampleCount");
-    const lastDigitEl = document.getElementById("lastDigit");
+    const mainPrice = document.getElementById("mainPrice");
+    const changeRow = document.getElementById("changeRow");
+    const changeArrow = document.getElementById("changeArrow");
+    const changePct = document.getElementById("changePct");
+    const liveDot = document.getElementById("liveDot");
+    const liveText = document.getElementById("liveText");
+    const high24 = document.getElementById("high24");
+    const low24 = document.getElementById("low24");
+    const statusEl = document.getElementById("status");
     const sampleSizeInput = document.getElementById("sampleSize");
     const overDigitInput = document.getElementById("overDigit");
     const underDigitInput = document.getElementById("underDigit");
+    const lastDigitEl = document.getElementById("lastDigit");
+    const sampleCountEl = document.getElementById("sampleCount"); // not used visually but kept for logic
+    const chartContainer = document.getElementById("chart");
+    const tickerTrack = document.getElementById("tickerTrack");
 
+    // ========== STATE ==========
     let socket = null;
     let selectedSymbol = marketSelect.value;
     let subscriptionId = null;
@@ -218,270 +488,35 @@
     let pingInterval = null;
     let ticks = [];
     const MAX_TICKS = 1000;
+    let openPrice = null;          // first price of session for % change
+    let dayHigh = null;
+    let dayLow = null;
 
-    // Try both official endpoints
     const ENDPOINTS = [
       "wss://ws.derivws.com/websockets/v3?app_id=1089",
       "wss://api.derivws.com/trading/v1/options/ws/public"
     ];
     let endpointIndex = 0;
 
-    function setStatus(msg, state = "connecting") {
-      statusElement.textContent = msg;
-      statusDot.className = "dot";
-      if (state === "connected") statusDot.classList.add("connected");
-      else if (state === "error") statusDot.classList.add("error");
-    }
+    // Ticker symbols for the belt
+    const tickerSymbols = [
+      {s:"1HZ10V", n:"V10 (1s)"}, {s:"1HZ25V", n:"V25 (1s)"}, {s:"1HZ50V", n:"V50 (1s)"},
+      {s:"1HZ75V", n:"V75 (1s)"}, {s:"R_10", n:"V10"}, {s:"R_25", n:"V25"},
+      {s:"R_50", n:"V50"}, {s:"R_75", n:"V75"}, {s:"R_100", n:"V100"},
+      {s:"BOOM1000", n:"Boom 1000"}, {s:"CRASH1000", n:"Crash 1000"},
+      {s:"frxEURUSD", n:"EUR/USD"}, {s:"frxXAUUSD", n:"Gold"}, {s:"cryBTCUSD", n:"BTC"}
+    ];
+    const tickerData = {}; // symbol -> {price, prev}
 
-    function getLastDigit(quote) {
-      return parseInt(String(quote).replace(".", "").slice(-1), 10);
-    }
+    // ========== CHART ==========
+    const chart = LightweightCharts.createChart(chartContainer, {
+      layout: { background: { type: 'solid', color: '#121826' }, textColor: '#6b7c93' },
+      grid: { vertLines: { color: '#1a2435' }, horzLines: { color: '#1a2435' } },
+      width: chartContainer.clientWidth,
+      height: 180,
+      rightPriceScale: { borderVisible: false },
+      timeScale: { borderVisible: false, timeVisible: true, secondsVisible: true },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal }
+    });
 
-    function getSampleSize() {
-      let n = parseInt(sampleSizeInput.value, 10);
-      if (isNaN(n) || n < 1) n = 1;
-      if (n > 1000) n = 1000;
-      return n;
-    }
-
-    function getOverDigit() {
-      let d = parseInt(overDigitInput.value, 10);
-      return isNaN(d) ? 5 : Math.min(9, Math.max(0, d));
-    }
-
-    function getUnderDigit() {
-      let d = parseInt(underDigitInput.value, 10);
-      return isNaN(d) ? 5 : Math.min(9, Math.max(0, d));
-    }
-
-    function analyze() {
-      const n = getSampleSize();
-      const sample = ticks.slice(-n);
-      const count = sample.length;
-      sampleCountEl.textContent = count;
-      if (count === 0) return;
-
-      let even = 0, odd = 0;
-      sample.forEach(t => t.digit % 2 === 0 ? even++ : odd++);
-      const evenPct = ((even / count) * 100).toFixed(1);
-      const oddPct = ((odd / count) * 100).toFixed(1);
-      document.getElementById("evenBar").style.width = evenPct + "%";
-      document.getElementById("oddBar").style.width = oddPct + "%";
-      document.getElementById("evenPct").textContent = evenPct + "%";
-      document.getElementById("oddPct").textContent = oddPct + "%";
-      document.getElementById("eoBadge").textContent = count + " ticks";
-
-      const overD = getOverDigit(), underD = getUnderDigit();
-      let over = 0, under = 0;
-      sample.forEach(t => {
-        if (t.digit > overD) over++;
-        if (t.digit < underD) under++;
-      });
-      const overPct = ((over / count) * 100).toFixed(1);
-      const underPct = ((under / count) * 100).toFixed(1);
-      document.getElementById("overBar").style.width = overPct + "%";
-      document.getElementById("underBar").style.width = underPct + "%";
-      document.getElementById("overPct").textContent = overPct + "%";
-      document.getElementById("underPct").textContent = underPct + "%";
-      document.getElementById("ouBadge").textContent = count + " ticks";
-
-      let rise = 0, fall = 0;
-      for (let i = 1; i < sample.length; i++) {
-        if (sample[i].quote > sample[i-1].quote) rise++;
-        else if (sample[i].quote < sample[i-1].quote) fall++;
-      }
-      const rfTotal = rise + fall;
-      const risePct = rfTotal ? ((rise / rfTotal) * 100).toFixed(1) : "0.0";
-      const fallPct = rfTotal ? ((fall / rfTotal) * 100).toFixed(1) : "0.0";
-      document.getElementById("riseBar").style.width = risePct + "%";
-      document.getElementById("fallBar").style.width = fallPct + "%";
-      document.getElementById("risePct").textContent = risePct + "%";
-      document.getElementById("fallPct").textContent = fallPct + "%";
-      document.getElementById("rfBadge").textContent = rfTotal + " moves";
-
-      const freq = Array(10).fill(0);
-      sample.forEach(t => freq[t.digit]++);
-      let maxF = -1, minF = Infinity, most = [], least = [];
-      freq.forEach((f, d) => {
-        if (f > maxF) { maxF = f; most = [d]; }
-        else if (f === maxF) most.push(d);
-        if (f < minF) { minF = f; least = [d]; }
-        else if (f === minF) least.push(d);
-      });
-
-      const lastDigit = sample[sample.length - 1].digit;
-      lastDigitEl.textContent = lastDigit;
-
-      const table = document.getElementById("digitTable");
-      table.innerHTML = "";
-      const maxBar = Math.max(...freq, 1);
-      for (let d = 0; d <= 9; d++) {
-        const pct = ((freq[d] / count) * 100).toFixed(1);
-        const h = Math.max(2, (freq[d] / maxBar) * 36);
-        const cell = document.createElement("div");
-        cell.className = "digit-cell";
-        if (d === lastDigit) cell.classList.add("active");
-        if (most.includes(d) && maxF > 0) cell.classList.add("most");
-        if (least.includes(d)) cell.classList.add("least");
-        cell.innerHTML = `<div class="digit-num">${d}</div><div class="digit-bar-wrap"><div class="digit-bar" style="height:${h}px"></div></div><div class="digit-pct">${pct}%</div><div class="digit-count">${freq[d]}</div>`;
-        table.appendChild(cell);
-      }
-
-      document.getElementById("mostDigit").textContent = most.join(", ");
-      document.getElementById("leastDigit").textContent = least.join(", ");
-      document.getElementById("mostDigitFull").textContent = most.join(", ") + ` (${((maxF/count)*100).toFixed(1)}%)`;
-      document.getElementById("leastDigitFull").textContent = least.join(", ") + ` (${((minF/count)*100).toFixed(1)}%)`;
-      document.getElementById("mdBadge").textContent = count + " ticks";
-      document.getElementById("digitBadge").textContent = count + " ticks";
-    }
-
-    function connect() {
-      if (socket) {
-        try { socket.close(); } catch(e) {}
-        socket = null;
-      }
-      if (pingInterval) {
-        clearInterval(pingInterval);
-        pingInterval = null;
-      }
-
-      const url = ENDPOINTS[endpointIndex];
-      console.log("Trying endpoint:", url);
-      setStatus("Connecting... (" + (endpointIndex === 0 ? "legacy" : "new") + ")", "connecting");
-
-      try {
-        socket = new WebSocket(url);
-      } catch (e) {
-        console.error("WebSocket create failed:", e);
-        setStatus("WebSocket not supported", "error");
-        return;
-      }
-
-      socket.onopen = function () {
-        console.log("✅ CONNECTED to", url);
-        reconnectAttempts = 0;
-        setStatus("Connected — loading price");
-        subscribeToMarket(selectedSymbol);
-
-        pingInterval = setInterval(function () {
-          if (socket && socket.readyState === WebSocket.OPEN) {
-            socket.send(JSON.stringify({ ping: 1 }));
-          }
-        }, 25000);
-      };
-
-      socket.onmessage = function (event) {
-        let data;
-        try { data = JSON.parse(event.data); } catch (e) { return; }
-
-        if (data.error) {
-          console.error("API Error:", data.error);
-          setStatus(data.error.message || "API Error", "error");
-          return;
-        }
-
-        if (data.msg_type === "tick" && data.tick) {
-          if (data.tick.symbol !== selectedSymbol) return;
-
-          if (data.subscription && data.subscription.id) {
-            subscriptionId = data.subscription.id;
-          }
-
-          const quote = Number(data.tick.quote);
-          const digit = getLastDigit(quote);
-          const decimals = Number(data.tick.pip_size || 2);
-
-          priceElement.textContent = quote.toFixed(decimals);
-          updatedElement.textContent = new Date().toLocaleTimeString();
-          setStatus("Live price connected", "connected");
-          lastDigitEl.textContent = digit;
-
-          ticks.push({ quote, digit });
-          if (ticks.length > MAX_TICKS) ticks.shift();
-          analyze();
-        }
-      };
-
-      socket.onerror = function () {
-        console.error("WebSocket error on", url);
-        setStatus("Connection error — trying next...", "error");
-      };
-
-      socket.onclose = function (event) {
-        console.log("Closed:", event.code, event.reason, "from", url);
-        subscriptionId = null;
-        if (pingInterval) {
-          clearInterval(pingInterval);
-          pingInterval = null;
-        }
-
-        // Switch endpoint after failures
-        if (reconnectAttempts >= 2) {
-          endpointIndex = (endpointIndex + 1) % ENDPOINTS.length;
-          reconnectAttempts = 0;
-          console.log("Switching to next endpoint");
-        }
-
-        if (reconnectAttempts < 12) {
-          const delay = Math.min(800 * Math.pow(1.6, reconnectAttempts), 10000);
-          reconnectAttempts++;
-          setStatus("Reconnecting... (" + reconnectAttempts + ")", "error");
-          setTimeout(connect, delay);
-        } else {
-          setStatus("Failed to connect. Please refresh.", "error");
-        }
-      };
-    }
-
-    function subscribeToMarket(symbol) {
-      selectedSymbol = symbol;
-      ticks = [];
-      sampleCountEl.textContent = "0";
-      lastDigitEl.textContent = "—";
-      ["even","odd","over","under","rise","fall"].forEach(id => {
-        const bar = document.getElementById(id + "Bar");
-        const pct = document.getElementById(id + "Pct");
-        if (bar) bar.style.width = "0%";
-        if (pct) pct.textContent = "0%";
-      });
-      document.getElementById("digitTable").innerHTML = "";
-
-      if (!socket || socket.readyState !== WebSocket.OPEN) {
-        priceElement.textContent = "Loading...";
-        setStatus("Connecting to market...");
-        return;
-      }
-
-      if (subscriptionId) {
-        socket.send(JSON.stringify({ forget: subscriptionId }));
-        subscriptionId = null;
-      }
-
-      priceElement.textContent = "Loading...";
-      updatedElement.textContent = "—";
-      setStatus("Loading " + symbol + "...");
-
-      socket.send(JSON.stringify({
-        ticks: symbol,
-        subscribe: 1
-      }));
-    }
-
-    function updateSelectedMarket() {
-      const option = marketSelect.options[marketSelect.selectedIndex];
-      marketName.textContent = option.textContent;
-      symbolElement.textContent = marketSelect.value;
-      selectedSymbol = marketSelect.value;
-      subscribeToMarket(selectedSymbol);
-    }
-
-    sampleSizeInput.addEventListener("input", analyze);
-    overDigitInput.addEventListener("input", analyze);
-    underDigitInput.addEventListener("input", analyze);
-    marketSelect.addEventListener("change", updateSelectedMarket);
-
-    // Start
-    connect();
-  </script>
-</body>
-</html>
+    const lineSeries = chart.addSeries(LightweightCharts.LineSeries, {
