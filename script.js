@@ -1,4 +1,3 @@
-
 const marketSelect = document.getElementById("marketSelect");
 const marketName = document.getElementById("marketName");
 const symbolElement = document.getElementById("symbol");
@@ -8,8 +7,7 @@ const statusDot = document.getElementById("statusDot");
 const updatedElement = document.getElementById("updated");
 
 const APP_ID = "34GGk6VAHQWY2QDMsCKyZ";
-const SOCKET_URL =
-  `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
+const SOCKET_URL = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 
 let socket = null;
 let selectedSymbol = marketSelect.value;
@@ -33,7 +31,6 @@ function sendRequest(request) {
   if (!socket || socket.readyState !== WebSocket.OPEN) {
     return false;
   }
-
   socket.send(JSON.stringify(request));
   return true;
 }
@@ -44,20 +41,19 @@ function getDecimalPlaces(pipSize) {
   }
 
   const text = pipSize.toString();
-
   if (text.includes("e-")) {
     return Math.min(10, Number(text.split("e-")[1]));
   }
-
   if (text.includes(".")) {
     return Math.min(10, text.split(".")[1].length);
   }
-
   return 0;
 }
 
 function subscribeToMarket(symbol) {
   const previousSubscription = subscriptionId;
+  
+  // Clean slate for the new token/symbol setup
   subscriptionId = null;
   selectedSymbol = symbol;
 
@@ -69,12 +65,12 @@ function subscribeToMarket(symbol) {
     return;
   }
 
+  // Explicitly unsubscribe from the old stream using its exact ID
   if (previousSubscription) {
     sendRequest({ forget: previousSubscription });
   }
 
   const reqId = ++requestNumber;
-
   setStatus(`Loading ${symbol}...`);
 
   sendRequest({
@@ -86,12 +82,12 @@ function subscribeToMarket(symbol) {
 
 function updateSelectedMarket() {
   const option = marketSelect.options[marketSelect.selectedIndex];
+  if (!option) return;
 
-  selectedSymbol = marketSelect.value;
   marketName.textContent = option.textContent;
-  symbolElement.textContent = selectedSymbol;
+  symbolElement.textContent = marketSelect.value;
 
-  subscribeToMarket(selectedSymbol);
+  subscribeToMarket(marketSelect.value);
 }
 
 function connect() {
@@ -114,7 +110,6 @@ function connect() {
 
   socket.addEventListener("message", (event) => {
     let data;
-
     try {
       data = JSON.parse(event.data);
     } catch (error) {
@@ -129,36 +124,32 @@ function connect() {
       if (data.req_id === requestNumber) {
         priceElement.textContent = "Unavailable";
       }
-
       return;
+    }
+
+    // Capture the subscription ID as soon as it returns from our tick initialization
+    if (data.subscription?.id && data.tick?.symbol === selectedSymbol) {
+      subscriptionId = data.subscription.id;
     }
 
     if (data.msg_type !== "tick" || !data.tick) {
       return;
     }
 
+    // Prevent cross-talk UI updates from lagging responses of an old market
     if (data.tick.symbol !== selectedSymbol) {
       return;
     }
 
-    if (data.subscription?.id) {
-      subscriptionId = data.subscription.id;
-    }
-
     const quote = Number(data.tick.quote);
-
     if (!Number.isFinite(quote)) {
       setStatus("Invalid price received", "error");
       return;
     }
 
-    const decimals = getDecimalPlaces(
-      Number(data.tick.pip_size)
-    );
-
+    const decimals = getDecimalPlaces(Number(data.tick.pip_size));
     priceElement.textContent = quote.toFixed(decimals);
     updatedElement.textContent = new Date().toLocaleTimeString();
-
     setStatus("Live price connected", "connected");
   });
 
@@ -168,7 +159,6 @@ function connect() {
 
   socket.addEventListener("close", () => {
     subscriptionId = null;
-
     if (!manuallyClosed) {
       setStatus("Disconnected — reconnecting...", "error");
       reconnectTimer = setTimeout(connect, 3000);
@@ -186,9 +176,10 @@ window.addEventListener("beforeunload", () => {
     if (subscriptionId) {
       sendRequest({ forget: subscriptionId });
     }
-
     socket.close();
   }
 });
 
+// Run UI labels update on load so it reflects the initial HTML dropdown state immediately
+updateSelectedMarket();
 connect();
