@@ -30,27 +30,26 @@
     .stat-label{font-size:10px;color:#6b7c93;letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px}
     .stat-value{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums}
 
-    /* Live Price Feed (Ticker) */
+    /* Live Price Feed */
     .ticker-belt{
       background:#0c111b;
       border-top:1px solid #1e2a3d;
       overflow:hidden;
       white-space:nowrap;
-      padding:11px 0;
-      position:relative;
+      padding:12px 0;
     }
     .ticker-track{
-      display:inline-flex;
-      gap:32px;
-      animation: scroll 35s linear infinite;
-      padding-left:100%;
+      display:inline-block;
+      white-space:nowrap;
+      animation: scroll 30s linear infinite;
     }
     .ticker-item{
       display:inline-flex;
       align-items:center;
       gap:8px;
-      font-size:12.5px;
+      font-size:13px;
       color:#9aabc0;
+      margin-right:36px;
     }
     .ticker-item .name{font-weight:600;color:#c5d0e0}
     .ticker-item .price{font-variant-numeric:tabular-nums;color:#e8edf5}
@@ -112,7 +111,6 @@
 <body>
   <div class="container">
 
-    <!-- Overview Panel -->
     <div class="overview-panel">
       <div class="overview-header">
         <div class="market-select-wrap">
@@ -171,15 +169,12 @@
         </div>
       </div>
 
-      <!-- LIVE PRICE FEED -->
+      <!-- Live scrolling price feed -->
       <div class="ticker-belt">
-        <div class="ticker-track" id="tickerTrack">
-          <!-- filled by JS -->
-        </div>
+        <div class="ticker-track" id="tickerTrack"></div>
       </div>
     </div>
 
-    <!-- Controls -->
     <div class="controls">
       <div class="control-box">
         <label for="sampleSize">Ticks to analyze (1–1000)</label>
@@ -213,11 +208,10 @@
       </div>
       <div class="control-box">
         <label>Connection</label>
-        <div style="font-size:13px;color:#9aabc0;padding-top:8px" id="connInfo">Public endpoint</div>
+        <div style="font-size:13px;color:#9aabc0;padding-top:8px">Public endpoint</div>
       </div>
     </div>
 
-    <!-- Analysis -->
     <div class="analysis-grid">
       <div class="card">
         <div class="card-title">Even / Odd <span class="badge" id="eoBadge">0 ticks</span></div>
@@ -259,7 +253,7 @@
       </div>
     </div>
 
-    <p class="note">Read-only. Uses last N ticks. No trades are placed.</p>
+    <p class="note">% change is calculated from ~24h ago. Analysis uses last N ticks. Read-only.</p>
   </div>
 
   <script>
@@ -286,30 +280,30 @@
     let pingInterval = null;
     let ticks = [];
     const MAX_TICKS = 1000;
-    let openPrice = null;
+
+    // For 24h-style change
+    let refPrice = null;   // price from ~24h ago
     let dayHigh = null;
     let dayLow = null;
 
     const WS_URL = "wss://api.derivws.com/trading/v1/options/ws/public";
 
-    // Markets shown in the live price feed
+    // Fewer symbols so the feed is more reliable
     const feedSymbols = [
-      {s:"1HZ10V", n:"V10 (1s)"},
-      {s:"1HZ25V", n:"V25 (1s)"},
-      {s:"1HZ50V", n:"V50 (1s)"},
-      {s:"1HZ75V", n:"V75 (1s)"},
-      {s:"R_10", n:"V10"},
+      {s:"1HZ10V", n:"V10 1s"},
+      {s:"1HZ25V", n:"V25 1s"},
+      {s:"1HZ50V", n:"V50 1s"},
+      {s:"1HZ75V", n:"V75 1s"},
       {s:"R_25", n:"V25"},
       {s:"R_50", n:"V50"},
       {s:"R_75", n:"V75"},
       {s:"R_100", n:"V100"},
-      {s:"BOOM1000", n:"Boom 1000"},
-      {s:"CRASH1000", n:"Crash 1000"},
-      {s:"frxEURUSD", n:"EUR/USD"},
-      {s:"frxXAUUSD", n:"Gold"},
+      {s:"BOOM1000", n:"Boom1000"},
+      {s:"CRASH1000", n:"Crash1000"},
+      {s:"frxEURUSD", n:"EURUSD"},
       {s:"cryBTCUSD", n:"BTC"}
     ];
-    const feedData = {}; // symbol -> {price, prev}
+    const feedData = {};
 
     function setLive(on) {
       if (on) {
@@ -352,29 +346,23 @@
 
     function updateFeed() {
       let html = "";
-      // Duplicate for seamless loop
-      const list = [...feedSymbols, ...feedSymbols];
+      const list = [...feedSymbols, ...feedSymbols]; // duplicate for seamless loop
       list.forEach(item => {
         const d = feedData[item.s];
         let priceStr = "—";
         let pctStr = "";
         let cls = "";
 
-        if (d) {
+        if (d && d.price) {
           priceStr = formatPrice(d.price, 2);
           if (d.prev && d.prev !== 0) {
-            const pct = ((d.price - d.prev) / d.prev * 100);
-            pctStr = (pct >= 0 ? "▲ +" : "▼ ") + Math.abs(pct).toFixed(2) + "%";
+            const pct = ((d.price - d.prev) / d.prev) * 100;
+            pctStr = (pct >= 0 ? "▲+" : "▼") + Math.abs(pct).toFixed(2) + "%";
             cls = pct >= 0 ? "up" : "down";
           }
         }
 
-        html += `
-          <div class="ticker-item">
-            <span class="name">${item.n}</span>
-            <span class="price">${priceStr}</span>
-            <span class="pct ${cls}">${pctStr}</span>
-          </div>`;
+        html += `<span class="ticker-item"><span class="name">${item.n}</span> <span class="price">${priceStr}</span> <span class="pct ${cls}">${pctStr}</span></span>`;
       });
       tickerTrack.innerHTML = html;
     }
@@ -412,8 +400,8 @@
 
       let rise = 0, fall = 0;
       for (let i = 1; i < sample.length; i++) {
-        if (sample[i].quote > sample[i - 1].quote) rise++;
-        else if (sample[i].quote < sample[i - 1].quote) fall++;
+        if (sample[i].quote > sample[i-1].quote) rise++;
+        else if (sample[i].quote < sample[i-1].quote) fall++;
       }
       const rfTotal = rise + fall;
       const risePct = rfTotal ? ((rise / rfTotal) * 100).toFixed(1) : "0.0";
@@ -464,6 +452,18 @@
       document.getElementById("digitBadge").textContent = count + " ticks";
     }
 
+    function requestHistory(symbol) {
+      // Ask for a good amount of recent ticks to approximate 24h reference
+      socket.send(JSON.stringify({
+        ticks_history: symbol,
+        adjust_start_time: 1,
+        count: 5000,
+        end: "latest",
+        start: 1,
+        style: "ticks"
+      }));
+    }
+
     function connect() {
       if (socket) {
         try { socket.close(); } catch (e) {}
@@ -484,9 +484,11 @@
         reconnectAttempts = 0;
         statusEl.textContent = "Connected";
         setLive(true);
+
+        // Main market
         subscribeToMarket(selectedSymbol);
 
-        // Subscribe feed symbols
+        // Feed symbols
         feedSymbols.forEach(item => {
           if (item.s !== selectedSymbol) {
             socket.send(JSON.stringify({ ticks: item.s, subscribe: 1 }));
@@ -509,7 +511,20 @@
         }
 
         if (data.error) {
-          statusEl.textContent = data.error.message || "API Error";
+          console.error(data.error);
+          return;
+        }
+
+        // History response → use first price as 24h reference
+        if (data.msg_type === "history" && data.history && data.echo_req && data.echo_req.ticks_history === selectedSymbol) {
+          const prices = data.history.prices;
+          if (prices && prices.length > 0) {
+            refPrice = Number(prices[0]);           // oldest in the returned window
+            dayHigh = Math.max(...prices.map(Number));
+            dayLow  = Math.min(...prices.map(Number));
+            high24.textContent = formatPrice(dayHigh);
+            low24.textContent  = formatPrice(dayLow);
+          }
           return;
         }
 
@@ -518,7 +533,7 @@
           const quote = Number(data.tick.quote);
           const decimals = Number(data.tick.pip_size || 2);
 
-          // Update live feed data
+          // Update feed
           if (!feedData[sym]) {
             feedData[sym] = { price: quote, prev: quote };
           } else {
@@ -527,7 +542,6 @@
           }
           updateFeed();
 
-          // Main selected market
           if (sym !== selectedSymbol) return;
 
           if (data.subscription && data.subscription.id) {
@@ -536,14 +550,17 @@
 
           mainPrice.textContent = formatPrice(quote, decimals);
 
-          if (openPrice === null) openPrice = quote;
-          const pct = ((quote - openPrice) / openPrice * 100);
-          const isUp = pct >= 0;
-          mainPrice.className = "main-price " + (isUp ? "up" : "down");
-          changeRow.className = "change-row " + (isUp ? "up" : "down");
-          changeArrow.textContent = isUp ? "▲" : "▼";
-          changePct.textContent = (isUp ? "+" : "") + pct.toFixed(2) + "%";
+          // 24h-style % change
+          if (refPrice && refPrice !== 0) {
+            const pct = ((quote - refPrice) / refPrice) * 100;
+            const isUp = pct >= 0;
+            mainPrice.className = "main-price " + (isUp ? "up" : "down");
+            changeRow.className = "change-row " + (isUp ? "up" : "down");
+            changeArrow.textContent = isUp ? "▲" : "▼";
+            changePct.textContent = (isUp ? "+" : "") + pct.toFixed(2) + "%";
+          }
 
+          // Update high / low live
           if (dayHigh === null || quote > dayHigh) dayHigh = quote;
           if (dayLow === null || quote < dayLow) dayLow = quote;
           high24.textContent = formatPrice(dayHigh, decimals);
@@ -552,7 +569,7 @@
           const digit = getLastDigit(quote);
           lastDigitEl.textContent = digit;
 
-          ticks.push({ quote: quote, digit: digit });
+          ticks.push({ quote, digit });
           if (ticks.length > MAX_TICKS) ticks.shift();
 
           analyze();
@@ -571,13 +588,12 @@
           clearInterval(pingInterval);
           pingInterval = null;
         }
-
         if (reconnectAttempts < 12) {
           const delay = Math.min(1000 * Math.pow(1.5, reconnectAttempts), 8000);
           reconnectAttempts++;
           setTimeout(connect, delay);
         } else {
-          statusEl.textContent = "Failed. Refresh page.";
+          statusEl.textContent = "Failed. Refresh.";
         }
       };
     }
@@ -585,7 +601,7 @@
     function subscribeToMarket(symbol) {
       selectedSymbol = symbol;
       ticks = [];
-      openPrice = null;
+      refPrice = null;
       dayHigh = null;
       dayLow = null;
       lastDigitEl.textContent = "—";
@@ -602,22 +618,4 @@
       }
 
       statusEl.textContent = "Loading...";
-      socket.send(JSON.stringify({
-        ticks: symbol,
-        subscribe: 1
-      }));
-    }
-
-    marketSelect.addEventListener("change", function () {
-      subscribeToMarket(marketSelect.value);
-    });
-    sampleSizeInput.addEventListener("input", analyze);
-    overDigitInput.addEventListener("input", analyze);
-    underDigitInput.addEventListener("input", analyze);
-
-    // Start
-    connect();
-    updateFeed();
-  </script>
-</body>
-</html>
+      socket.send(JSON.stringify({ ticks: symbol,
