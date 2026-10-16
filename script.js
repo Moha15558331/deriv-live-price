@@ -10,7 +10,8 @@ let socket = null;
 let selectedSymbol = marketSelect.value;
 let subscriptionId = null;
 let reconnectAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 10;
+const MAX_RECONNECT_ATTEMPTS = 12;
+let pingInterval = null;
 
 function setStatus(message, state = "connecting") {
   statusElement.textContent = message;
@@ -23,30 +24,35 @@ function setStatus(message, state = "connecting") {
 }
 
 function connect() {
-  // Close existing connection if any
+  // Clean previous connection
   if (socket) {
     socket.onopen = null;
     socket.onmessage = null;
     socket.onerror = null;
     socket.onclose = null;
-    socket.close();
+    try { socket.close(); } catch (e) {}
   }
 
-  // NEW recommended public endpoint (no app_id needed)
-  socket = new WebSocket("wss://api.derivws.com/trading/v1/options/ws/public");
+  if (pingInterval) {
+    clearInterval(pingInterval);
+    pingInterval = null;
+  }
+
+  // Use the old reliable endpoint
+  socket = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089");
 
   setStatus("Connecting...", "connecting");
+  priceElement.textContent = "Waiting...";
 
   socket.addEventListener("open", () => {
-    console.log("WebSocket connected");
+    console.log("✅ WebSocket connected");
     reconnectAttempts = 0;
-    setStatus("Connected — loading price", "connecting");
+    setStatus("Connected — loading price");
     subscribeToMarket(selectedSymbol);
 
-    // Keep-alive ping every 30 seconds
-    if (window.pingInterval) clearInterval(window.pingInterval);
-    window.pingInterval = setInterval(() => {
-      if (socket.readyState === WebSocket.OPEN) {
+    // Keep-alive ping
+    pingInterval = setInterval(() => {
+      if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ ping: 1 }));
       }
     }, 30000);
@@ -61,7 +67,6 @@ function connect() {
       return;
     }
 
-    // Always log errors clearly
     if (data.error) {
       console.error("Deriv API error:", data.error);
       setStatus(data.error.message || "API Error", "error");
@@ -69,11 +74,10 @@ function connect() {
       return;
     }
 
-    // Handle tick updates
     if (data.msg_type === "tick" && data.tick) {
       if (data.tick.symbol !== selectedSymbol) return;
 
-      if (data.subscription?.id) {
+      if (data.subscription && data.subscription.id) {
         subscriptionId = data.subscription.id;
       }
 
@@ -81,11 +85,6 @@ function connect() {
       priceElement.textContent = Number(data.tick.quote).toFixed(decimals);
       updatedElement.textContent = new Date().toLocaleTimeString();
       setStatus("Live price connected", "connected");
-    }
-
-    // Optional: log other useful messages
-    if (data.msg_type === "ping") {
-      // pong received, connection is alive
     }
   });
 
@@ -99,18 +98,18 @@ function connect() {
     subscriptionId = null;
     setStatus("Disconnected — reconnecting...", "error");
 
-    if (window.pingInterval) {
-      clearInterval(window.pingInterval);
+    if (pingInterval) {
+      clearInterval(pingInterval);
+      pingInterval = null;
     }
 
-    // Auto-reconnect with backoff
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 15000);
+      const delay = Math.min(1000 * Math.pow(1.8, reconnectAttempts), 15000);
       reconnectAttempts++;
-      console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
+      console.log(`Reconnecting in ${Math.round(delay)}ms (attempt ${reconnectAttempts})`);
       setTimeout(connect, delay);
     } else {
-      setStatus("Failed to reconnect. Refresh the page.", "error");
+      setStatus("Failed to reconnect. Please refresh the page.", "error");
     }
   });
 }
@@ -118,7 +117,7 @@ function connect() {
 function subscribeToMarket(symbol) {
   selectedSymbol = symbol;
 
-  if (socket?.readyState !== WebSocket.OPEN) {
+  if (!socket || socket.readyState !== WebSocket.OPEN) {
     priceElement.textContent = "Loading...";
     setStatus("Connecting to market...");
     return;
@@ -146,7 +145,7 @@ function updateSelectedMarket() {
   symbolElement.textContent = marketSelect.value;
   selectedSymbol = marketSelect.value;
 
-  if (socket?.readyState === WebSocket.OPEN) {
+  if (socket && socket.readyState === WebSocket.OPEN) {
     subscribeToMarket(selectedSymbol);
   } else {
     priceElement.textContent = "Loading...";
@@ -154,8 +153,8 @@ function updateSelectedMarket() {
   }
 }
 
-// Start connection
+// Start
 connect();
 
-// Market change listener
+// Market change
 marketSelect.addEventListener("change", updateSelectedMarket);
